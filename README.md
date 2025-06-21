@@ -20,7 +20,6 @@
 | **Header‑only**                   | `registry.h`                                                   | No library to build, no deps                         |
 | **Type‑safe**                     | `reg.emplace<Position>(e, …)`                                  | Compile‑time component IDs                           |
 | **Variadic queries**              | `reg.query([](Pos&, Vel&){…});`                                | Accepts lambdas or functions, auto‑deduces args      |
-| **Single‑entity queries**         | `reg.query_with(e, fn, …)`                                     | Hot‑path direct calls                                |
 | **Debug asserts**                 | `KW_ECS_ASSERT_MSG`                                            | Catches OOB & misuse in debug                        |
 
 ---
@@ -121,7 +120,7 @@ No third‑party dependencies, no linkage order headaches.
 
 ## ⚖️ License
 
-**Kawa‑ECS** is released under the MIT License — see `LICENSE` for details.
+**kawa::ecs** is released under the MIT License — see `LICENSE` for details.
 
 ---
 
