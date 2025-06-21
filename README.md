@@ -21,7 +21,6 @@
 | **Type‑safe**                     | `reg.emplace<Position>(e, …)`                                  | Compile‑time component IDs                           |
 | **Variadic queries**              | `reg.query([](Pos&, Vel&){…});`                                | Accepts lambdas or functions, auto‑deduces args      |
 | **Single‑entity queries**         | `reg.query_with(e, fn, …)`                                     | Hot‑path direct calls                                |
-| **Zero‑overhead optional access** | `if (auto* p = reg.get_if_has<Health>(e))`                     | ⛔ No exceptions                                      |
 | **Debug asserts**                 | `KW_ECS_ASSERT_MSG`                                            | Catches OOB & misuse in debug                        |
 
 ---
@@ -50,7 +49,7 @@ int main()
         }
     );
 }
-
+```
 ## 📝 Full Example
 
 ```cpp
