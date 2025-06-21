@@ -118,12 +118,6 @@ No third‑party dependencies, no linkage order headaches.
 
 ---
 
-## ⚖️ License
-
-**kawa::ecs** is released under the MIT License — see `LICENSE` for details.
-
----
-
 > Made with love.
 > If you use `kawa::ecs` in something cool,
 > let me know!
