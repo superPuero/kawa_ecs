@@ -4,31 +4,31 @@
 
 // Define user components
 
-struct Position 
+struct Position
 {
     float x;
     float y;
 };
 
-struct Velocity 
+struct Velocity
 {
     float x;
     float y;
 };
 
-struct Label 
+struct Label
 {
     std::string name;
 };
 
 // Sample functions used for queries
 
-void display_labels(Label& label) 
+void display_labels(Label& label)
 {
     std::cout << label.name << '\n';
 }
 
-void update_position(float dt, Position& pos, Velocity& vel) 
+void update_position(float dt, Position& pos, Velocity& vel)
 {
     pos.x += vel.x * dt;
     pos.y += vel.y * dt;
@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     entity_id e4 = reg.entity();
 
     // Example: checking entity validity
-    if (e1 == nullent || !e1) 
+    if (e1 == nullent || !e1)
     {
         std::cout << "Invalid entity!" << '\n';
     }
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
     // Inline lambda that queries for all Labels.
     reg.query
     (
-        [](Label& label) 
+        [](Label& label)
         {
             std::cout << label.name << '\n';
         }
@@ -109,25 +109,25 @@ int main(int argc, char** argv) {
     // Inline lambda with capture and multiple components.
     reg.query
     (
-        [&](Position& pos, Velocity& vel) 
+        [&](Position& pos, Velocity& vel)
         {
             pos.x += vel.x * delta_time;
             pos.y += vel.y * delta_time;
         }
     );
 
-    // Lambda with external fall-thorough argument (dt passed in)
+    // Lambda with external fall-thorough argument (delta_time passed in)
     reg.query
     (
-        [](float dt, Position& pos, Velocity& vel) 
+        [](float dt, Position& pos, Velocity& vel)
         {
             pos.x += vel.x * dt;
             pos.y += vel.y * dt;
-        }, 
+        },
         delta_time
     );
 
-    // Passing a function that matches the query signature and with fall-thorough argument (passing dt).
+    // Passing a function that matches the query signature with fall-thorough argument (delta_time passed in).
     reg.query(update_position, delta_time);
 
     // === 7. Using reference fall-through arguments ===
@@ -137,11 +137,11 @@ int main(int argc, char** argv) {
     float sum_pos_x = 0;
     reg.query
     (
-        [](float& accm, Position& pos, Velocity& vel) 
+        [](float& accm, Position& pos, Velocity& vel)
         {
             accm += pos.x;
             std::cout << "Sum x is " << accm << " now" << '\n';
-        }, 
+        },
         sum_pos_x
     );
 

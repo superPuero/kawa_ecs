@@ -3,10 +3,27 @@
 #include <memory>
 #include <iostream>
 
-#ifdef _DEBUG
-	#define KW_ECS_ASSERT_MSG(expr, msg) if(!(expr)) std::cout << msg << '\n', __debugbreak()
-#else 
-	#define KW_ECS_ASSERT_MSG(expr, msg)
+#if defined(_DEBUG)
+
+    #if defined(_MSC_VER)
+        #include <intrin.h>
+        #define KW_ECS_DEBUG_BREAK() __debugbreak()
+    #elif defined(__GNUC__) || defined(__clang__)
+        #define KW_ECS_DEBUG_BREAK() __builtin_trap()
+    #else
+        #define KW_ECS_DEBUG_BREAK() ((void)0)
+    #endif
+
+    #define KW_ECS_ASSERT_MSG(expr, msg) \
+        do { \
+            if (!(expr)) { \
+                std::cout << msg << '\n'; \
+                KW_ECS_DEBUG_BREAK(); \
+            } \
+        } while(0)
+
+#else
+    #define KW_ECS_ASSERT_MSG(expr, msg) ((void)0)
 #endif
 
 #define KW_MAX_STORAGE_COUNT 255
@@ -110,7 +127,7 @@ namespace ecs
 	public:
 		inline bool has(size_t index) noexcept
 		{
-			KW_ECS_ASSERT_MSG(index < _capacity, "index out of boudns");
+			KW_ECS_ASSERT_MSG(validate(index), "index out of boudns");
 
 			return _mask[index];
 		}
@@ -118,7 +135,7 @@ namespace ecs
 		template<typename T, typename...Args>
 		inline T& emplace(size_t index, Args&&...args)  noexcept
 		{
-				KW_ECS_ASSERT_MSG(index < _capacity, "index out of boudns");
+			KW_ECS_ASSERT_MSG(validate(index), "index out of boudns");
 
 			bool& cell = _mask[index];
 			if (!cell)
@@ -140,7 +157,7 @@ namespace ecs
 		template<typename T>
 		inline T& get(size_t index) noexcept
 		{
-			KW_ECS_ASSERT_MSG(index < _capacity, "index out of boudns");
+			KW_ECS_ASSERT_MSG(validate(index), "index out of boudns");
 
 			return *(static_cast<T*>(_storage) + index);
 		}
@@ -148,7 +165,7 @@ namespace ecs
 		template<typename T>
 		inline T* get_if_has(size_t index) noexcept
 		{
-			KW_ECS_ASSERT_MSG(index < _capacity, "index out of boudns");
+			KW_ECS_ASSERT_MSG(validate(index), "index out of boudns");
 
 			if (_mask[index])
 			{
@@ -159,7 +176,7 @@ namespace ecs
 
 		inline void erase(size_t index) noexcept
 		{
-			KW_ECS_ASSERT_MSG(index < _capacity, "index out of boudns");
+			KW_ECS_ASSERT_MSG(validate(index), "index out of boudns");
 
 			bool& cell = _mask[index];
 			if (cell)
@@ -173,6 +190,11 @@ namespace ecs
 
 				cell = false;
 			}
+		}
+
+		inline bool validate(size_t index) noexcept
+		{
+			return index < _capacity;
 		}
 
 	//private:
@@ -250,7 +272,12 @@ namespace ecs
 		template<typename T, typename...Args>
 		inline T& emplace(entity_id entity, Args&&...args) noexcept
 		{
+			KW_ECS_ASSERT_MSG(validate_entity(entity), "entity id out of bounds");
+
 			storage_id s_id = get_storage_id<T>();
+
+			KW_ECS_ASSERT_MSG(validate_storage(s_id), "invalid storage, increase KW_MAX_STORAGE_COUNT for more avaliable storage ids");
+
 			bool& storage_cell = _storage_mask[s_id];
 
 			sparse_poly_set& storage = _storage[s_id];
@@ -267,6 +294,8 @@ namespace ecs
 		template<typename T>
 		inline void erase(entity_id entity) noexcept
 		{
+			KW_ECS_ASSERT_MSG(validate_entity(entity), "entity id out of bounds");
+
 			bool& entity_cell = _entity_mask[entity];
 
 			if (entity_cell)
@@ -285,11 +314,16 @@ namespace ecs
 		template<typename T>
 		inline bool has(entity_id entity) noexcept
 		{
+			KW_ECS_ASSERT_MSG(validate_entity(entity), "entity id out of bounds");
+
 			bool& entity_cell = _entity_mask[entity];
 
 			if (entity_cell)
 			{
 				storage_id s_id = get_storage_id<T>();
+
+				KW_ECS_ASSERT_MSG(validate_storage(s_id), "invalid storage, increase KW_MAX_STORAGE_COUNT for more avaliable storage ids");
+
 				if (_storage_mask[s_id])
 				{
 					return _storage[s_id].has(entity);
@@ -304,17 +338,28 @@ namespace ecs
 		template<typename T>
 		inline T& get(entity_id entity) noexcept
 		{
-			return _storage[get_storage_id<T>()].get<T>(entity);
+			KW_ECS_ASSERT_MSG(validate_entity(entity), "entity id out of bounds");
+
+			storage_id s_id = get_storage_id<T>();
+
+			KW_ECS_ASSERT_MSG(validate_storage(s_id), "invalid storage, increase KW_MAX_STORAGE_COUNT for more avaliable storage ids");
+
+			return _storage[s_id].get<T>(entity);
 		}
 
 		template<typename T>
 		inline T* get_if_has(entity_id entity) noexcept
 		{
+			KW_ECS_ASSERT_MSG(validate_entity(entity), "entity id out of bounds");
+
 			bool& entity_cell = _entity_mask[entity];
 
 			if (entity_cell)
 			{
 				storage_id s_id = get_storage_id<T>();
+
+				KW_ECS_ASSERT_MSG(validate_storage(s_id), "invalid storage, increase KW_MAX_STORAGE_COUNT for more avaliable storage ids");
+
 				if (_storage_mask[s_id])
 				{
 					return _storage[s_id].get_if_has<T>(entity);
@@ -328,6 +373,8 @@ namespace ecs
 
 		inline void destroy(entity_id entity) noexcept
 		{
+			KW_ECS_ASSERT_MSG(validate_entity(entity), "entity id out of bounds");
+
 			bool& entity_cell = _entity_mask[entity];
 
 			if (entity_cell)
@@ -381,7 +428,7 @@ namespace ecs
 				else
 				{
 					using out_args_tuple = meta::slice_tuple<args_tuple>::template at<sizeof...(Params)>;
-
+															
 					query_with_impl<Fn, out_args_tuple>
 					(
 						entity,
@@ -449,17 +496,30 @@ namespace ecs
 				}
 			}
 		}
+	private:
 
+		inline bool validate_entity(entity_id id) noexcept
+		{
+			return id < _r_capacity;
+		}
+
+		inline bool validate_storage(storage_id id) noexcept
+		{
+			return id < KW_MAX_STORAGE_COUNT;
+		}
 	
 	private:
-		sparse_poly_set*	_storage		= nullptr;
-		size_t				_capacity		= 0;
-		size_t				_r_capacity		= 0;
-		size_t				_occupied		= 1;
-		bool*				_storage_mask	= nullptr;
-		bool*				_entity_mask	= nullptr;
-		size_t*				_free_list      = nullptr;
-		size_t				_free_list_size = 0;
+		sparse_poly_set*	_storage				= nullptr;
+
+		size_t				_capacity				= 0;
+		size_t				_r_capacity				= 0;
+		size_t				_occupied				= 1;
+
+		bool*				_storage_mask			= nullptr;
+
+		bool*				_entity_mask			= nullptr;
+		size_t*				_free_list				= nullptr;
+		size_t				_free_list_size			= 0;
 
 	private:
 		static inline storage_id _storage_id_counter = 0;
