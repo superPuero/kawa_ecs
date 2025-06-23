@@ -1,11 +1,13 @@
 # 🌊 **kawa::ecs**
+![language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
+![status](https://img.shields.io/badge/stability-stable-brightgreen)
 
 *A tiny, lightning‑fast C++20 Entity‑Component System*
 
 ---
 
-> **kawa::ecs** (kawa = 川 *river* in Japanese) is a header‑only ECS that
-> focuses on **raw speed, near-zero dynamic allocations**, and a
+> **kawa::ecs** is a header‑only ECS that ocuses on
+> f **raw speed, near-zero dynamic allocations**, and a
 > *minimal, modern* API. Drop the header into any C++20 project and you
 > have an industrial‑strength data‑oriented backbone for games, simulations,
 > or large‑scale AI worlds.
