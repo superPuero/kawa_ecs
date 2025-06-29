@@ -97,7 +97,7 @@ int main()
 
 ## 🔍 Querying Semantics
 
-The `registry::query` method supports **variadic parameter matching** with a strict grouping system:
+The `registry::query` method is a **variadic parameter matching** system with a strict grouping system:
 
 ```
 [ fall-through..., required components..., optional components...]
@@ -109,7 +109,7 @@ Each group:
 |------------------|-------------------------------|--------------------------------------------------|
 | **Fall-through** | `T`, `T&`, `T*`               | `Passed in` from outside (mimics lambda capture) |
 | **Required**     | `Component& / Component`      | Entity must have this to match                   |
-| **Optional**     | `Component*`                  | Null if the entity lacks the component           |
+| **Optional**     | `Component*`                  | nullptr if the entity lacks the component        |
 
 ### ⚠️ Grouping Rules
 
@@ -137,12 +137,9 @@ reg.query([](Position& pos, Label* opt, Velocity& vel)); // ❌ optional must co
 ---
 
 
-## 🔄 Roadmap
+## 🔄 Todo
 
 * [ ] Parallel `query()` (thread‑safe sharding)
-* [ ] Stable handles / versioned entity IDs
-* [ ] Optional *archetype* packing mode
-* [ ] Serialization helpers (binary & JSON)
 
 ---
 
