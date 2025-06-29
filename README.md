@@ -27,13 +27,13 @@ No third‑party dependencies, no linkage order headaches.
 
 ## ✨ Features 
 
-| 🚀                                | What                                                           | Details                                             |
-| --------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------- |
-| **Ultra‑fast**                    | Aims to be as fast as possible while maintaining simplicity.   | Cache‑friendly *sparse‑poly* storage, freelist reuse |
-| **Header‑only**                   | `registry.h`                                                   | No library to build, no deps                         |
-| **Type‑safe**                     | `reg.emplace<Position>(e, …)`                                  | Compile‑time component IDs                           |
-| **Variadic queries**              | `reg.query([](Pos&, Vel&){…});`                                | Accepts lambdas or functions, auto‑deduces args      |
-| **Debug asserts**                 | `KW_ECS_ASSERT_MSG`                                            | Catches OOB & misuse in debug                        |
+| 🚀                                | What                                                           | Details                                            |
+| --------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------|
+| **Ultra‑fast**                    | Aims to be as fast as possible while maintaining simplicity.   | Cache‑friendly storages, mindful optimizations      |
+| **Header‑only**                   | `registry.h`                                                   | No library to build, no deps                        |
+| **Type‑safe**                     | `reg.emplace<Position>(e, …)`                                  | Compile‑time component IDs                          |
+| **Queries**                       | `reg.query([](Pos&, Vel&){…});`                                | Functional approach to entity matching              |
+| **Debug asserts**                 | `KW_ECS_ASSERT_MSG`                                            | Catches OOB & misuse in debug                       |
 
 ---
 
