@@ -1,22 +1,24 @@
 # 🌊 **kawa::ecs**
+![language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
+![status](https://img.shields.io/badge/stability-stable-brightgreen)
 
 *A tiny, lightning‑fast C++20 Entity‑Component System*
 
 ---
 
-> **kawa::ecs** (kawa = 川 *river* in Japanese) is a header‑only ECS that
-> focuses on **raw speed, near-zero dynamic allocations**, and a
-> *minimal, modern* API. Drop the header into any C++20 project and you
-> have an industrial‑strength data‑oriented backbone for games, simulations,
+> **kawa::ecs** is a header‑only ECS that focuses on  
+> **raw speed, near-zero dynamic allocations**, and a  
+> *minimal, modern* API. Drop the header into any C++20 project and you  
+> have an industrial‑strength data‑oriented backbone for games, simulations,  
 > or large‑scale AI worlds.
 
 ---
 
-## ✨ Features
+## ✨ Features 
 
-| 🚀                                | What                                                           | Details                                              |
+| 🚀                                | What                                                           | Details                                             |
 | --------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------- |
-| **Ultra‑fast**                    | Aims to be as fast as possible while maintaining simplicity.    | Cache‑friendly *sparse‑poly* storage, freelist reuse |
+| **Ultra‑fast**                    | Aims to be as fast as possible while maintaining simplicity.   | Cache‑friendly *sparse‑poly* storage, freelist reuse |
 | **Header‑only**                   | `registry.h`                                                   | No library to build, no deps                         |
 | **Type‑safe**                     | `reg.emplace<Position>(e, …)`                                  | Compile‑time component IDs                           |
 | **Variadic queries**              | `reg.query([](Pos&, Vel&){…});`                                | Accepts lambdas or functions, auto‑deduces args      |
@@ -33,13 +35,13 @@ using namespace kawa::ecs;
 
 int main()
 {
-    registry reg(512);               // 512 max entities
+    registry reg(512);               
 
     entity_id e = reg.entity();      // create entity
     reg.emplace<Position>(e, 0, 0);  // add components
     reg.emplace<Velocity>(e, 1, 2);
 
-    // iterate over matching archetype(s)
+    // iterate over matching archetype
     reg.query
     (
         [](Position& p, const Velocity& v)
@@ -49,6 +51,9 @@ int main()
     );
 }
 ```
+
+---
+
 ## 📝 Full Example
 
 ```cpp
@@ -85,17 +90,57 @@ int main() {
 
 ## 📚 API Cheat‑Sheet
 
-| Call                               | Purpose                                  |
-| ---------------------------------- | ---------------------------------------- |
-| `registry(size_t max_entities)`    | Construct a registry                     |
-| `entity_id entity()`               | Allocate new entity or returns `nullent` |
-| `emplace<T>(id, args…)`            | Construct component `T` on entity        |
-| `erase<T>(id)`                     | Destroy component `T`                    |
-| `has<T>(id)`                       | Check presence                           |
-| `get<T>(id)` / `get_if_has<T>(id)` | Access (ref / pointer)                   |
-| `query(fn, extraArgs…)`            | Iterate matching entities                |
-| `query_with(id, fn, extraArgs…)`   | Call `fn` if entity matches              |
-| `destroy(id)`                      | Remove entity & all its components       |
+| Call                                 | Purpose                                  |
+| -------------------------------------| ---------------------------------------- |
+| `registry(size_t max_entities)`      | Construct a registry                     |
+| `entity_id entity()`                 | Allocate new entity or returns `nullent` |
+| `emplace<T>(id, args…)`              | Construct component `T` on entity        |
+| `erase<T>(id)`                       | Destroy component `T`                    |
+| `has<T>(id)`                         | Check presence                           |
+| `get<T>(id)` / `get_if_has<T>(id)`   | Access (ref / pointer)                   |
+| `query(fn, args…)`                   | Iterate matching entities                |
+| `query_with(id, fn, args…)`          | Call `fn` if entity matches              |
+| `destroy(id)`                        | Remove entity & all its components       |
+| `entity_with<Ts...>(Ts{args...}...)` | Create an entity and emplace components  |
+
+---
+
+## 🔍 Querying Semantics
+
+The `registry::query` method supports **variadic parameter matching** with a strict grouping system:
+
+```
+[ fall-through..., required components..., optional components...]
+```
+
+Each group:
+
+| Group            | Type signature example        | Notes                                            |
+|------------------|-------------------------------|--------------------------------------------------|
+| **Fall-through** | `float`, `int&`, `std::string*`| `Passed in` from outside (mimics lambda capture) |
+| **Required**     | `Component& / Component`      | Entity must have this to match                   |
+| **Optional**     | `Component*`                  | Null if the entity lacks the component           |
+
+### ⚠️ Grouping Rules
+
+- Groups **must appear in this strict order**:  
+  `fall-through` → `required` → `optional`
+- **Each group may be empty**, but **no interleaving** allowed.
+- ✅ Valid:
+
+```cpp
+reg.query([](float dt, Position& pos, Velocity& vel), dt);
+reg.query([](Position& pos, Label* label));
+```
+
+- ❌ Invalid:
+
+```cpp
+reg.query([](Position& pos, float dt), dt); // ❌ fall-through must come first
+reg.query([](Position& pos, Label* opt, Velocity& vel)); // ❌ optional must come last
+```
+
+---
 
 ## 🏗️ Building & Using
 
@@ -110,7 +155,6 @@ No third‑party dependencies, no linkage order headaches.
 
 ## 🔄 Roadmap
 
-* [ ] Optional query matching `query(Model* model)` 
 * [ ] Parallel `query()` (thread‑safe sharding)
 * [ ] Stable handles / versioned entity IDs
 * [ ] Optional *archetype* packing mode
@@ -118,6 +162,5 @@ No third‑party dependencies, no linkage order headaches.
 
 ---
 
-> Made with love.
-> If you use `kawa::ecs` in something cool,
-> let me know!
+> Made with love.  
+> If you use `kawa::ecs` in something cool, let me know!
