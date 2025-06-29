@@ -60,40 +60,7 @@ int main()
           p.x += v.x; p.y += v.y;
         }
     );
-}
-```
-
----
-
-## 📝 Full Example
-
-```cpp
-// components
-struct Position { float x, y; };
-struct Velocity { float x, y; };
-struct Label    { std::string name; };
-
-void update(float dt, Position& p, const Velocity& v)
-{
-    p.x += v.x * dt;
-    p.y += v.y * dt;
-}
-
-int main() {
-    using namespace kawa::ecs;
-    registry reg(256);
-
-    auto e1 = reg.entity();
-    reg.emplace<Position>(e1, 0, 0);
-    reg.emplace<Velocity>(e1, 2, 3);
-    reg.emplace<Label   >(e1, "Dude");
-
-    // simple query
-    reg.query([](Label& l){ std::cout << l.name << "\n"; });
-
-    // query with external parameter
-    float dt = 0.016f;
-    reg.query(update, dt);
+    // More examples in examples.cpp
 }
 ```
 
