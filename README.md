@@ -42,13 +42,25 @@ No third‑party dependencies, no linkage order headaches.
 
 using namespace kawa::ecs;
 
+struct Position
+{
+    float x;
+    float y;  
+}
+
+struct Velocity
+{
+    float x;
+    float y;  
+}
+
 int main()
 {
     registry reg(512);               
 
     entity_id e = reg.entity();      // create entity
-    reg.emplace<Position>(e, 0, 0);  // add components
-    reg.emplace<Velocity>(e, 1, 2);
+    reg.emplace<Position>(e, 0.0f, 0.0f);  // add components
+    reg.emplace<Velocity>(e, 1.0f, 2.0f);
 
     // iterate over matching archetype
     reg.query
