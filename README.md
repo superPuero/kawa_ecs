@@ -6,11 +6,9 @@
 
 ---
 
-> **kawa::ecs** is a header‑only ECS that focuses on  
-> **raw speed, near-zero dynamic allocations**, and a  
-> *minimal, modern* API. Drop the header into any C++20 project and you  
-> have an industrial‑strength data‑oriented backbone for games, simulations,  
-> or large‑scale AI worlds.
+> **kawa::ecs** is a header‑only ECS that focuses on  **raw speed, near-zero dynamic allocations**, and a  
+> *minimal, modern* API. Drop the header into any C++20 project and you have an industrial‑strength
+> data‑oriented backbone for games, simulations, or large‑scale AI worlds.
 
 ---
 
