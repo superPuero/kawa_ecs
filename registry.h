@@ -642,14 +642,21 @@ namespace ecs
 		template<typename Fn, typename rquire_tuple, size_t...require_idxs, typename...Params>
 		inline void _query_req_impl(Fn&& fn, std::index_sequence<require_idxs...>, Params&&...params) noexcept
 		{
-			storage_id storage_keys[sizeof...(require_idxs)] =
+
+			storage_id require_storage_keys[sizeof...(require_idxs)] =
 			{ 
 				get_storage_id<std::tuple_element_t<require_idxs, rquire_tuple>>()...,
 			};
 
-			if ((_storage_mask[storage_keys[require_idxs]] && ...))
+	#ifdef _DEBUG
+			for (storage_id s_id : require_storage_keys)
 			{
-				_internal::poly_storage* storages[sizeof...(require_idxs)] = { &_storage[storage_keys[require_idxs]]... };
+				KW_ECS_ASSERT(validate_storage(s_id))
+			}
+	#endif
+			if ((_storage_mask[require_storage_keys[require_idxs]] && ...))
+			{
+				_internal::poly_storage* storages[sizeof...(require_idxs)] = { &_storage[require_storage_keys[require_idxs]]... };
 
 				_internal::poly_storage* smallest = storages[0];
 
@@ -681,6 +688,13 @@ namespace ecs
 				get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
 			};
 
+#ifdef _DEBUG
+			for (storage_id s_id : opt_storage_keys)
+			{
+				KW_ECS_ASSERT(validate_storage(s_id))
+			}
+#endif
+
 			_internal::poly_storage* opt_storages[std::tuple_size_v<opt_tuple>] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
 
 			for (size_t i = 0; i < _entries_counter; i++)
@@ -699,10 +713,24 @@ namespace ecs
 				get_storage_id<std::tuple_element_t<require_idxs, require_tuple>>()...,
 			};
 
+#ifdef _DEBUG
+			for (storage_id s_id : require_storage_keys)
+			{
+				KW_ECS_ASSERT(validate_storage(s_id))
+			}
+#endif
+
 			storage_id opt_storage_keys[sizeof...(opt_idxs)] =
 			{
 				get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
 			};
+
+#ifdef _DEBUG
+			for (storage_id s_id : opt_storage_keys)
+			{
+				KW_ECS_ASSERT(validate_storage(s_id))
+			}
+#endif
 
 			if ((_storage_mask[require_storage_keys[require_idxs]] && ...))
 			{
@@ -738,6 +766,12 @@ namespace ecs
 				get_storage_id<std::tuple_element_t<require_idxs, require_tuple>>()...,
 			};
 
+#ifdef _DEBUG
+			for (storage_id s_id : require_storage_keys)
+			{
+				KW_ECS_ASSERT(validate_storage(s_id))
+			}
+#endif
 			
 			if ((_storage_mask[require_storage_keys[require_idxs]] && ...))
 			{
@@ -770,6 +804,12 @@ namespace ecs
 			{
 				get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
 			};
+#ifdef _DEBUG
+			for (storage_id s_id : opt_storage_keys)
+			{
+				KW_ECS_ASSERT(validate_storage(s_id))
+			}
+#endif
 
 			_internal::poly_storage* opt_storages[std::tuple_size_v<opt_tuple>] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
 
@@ -784,10 +824,24 @@ namespace ecs
 				get_storage_id<std::tuple_element_t<require_idxs, require_tuple>>()...,
 			};
 
+#ifdef _DEBUG
+			for (storage_id s_id : require_storage_keys)
+			{
+				KW_ECS_ASSERT(validate_storage(s_id))
+			}
+#endif
+
 			storage_id opt_storage_keys[sizeof...(opt_idxs)] =
 			{
 				get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
 			};
+
+#ifdef _DEBUG
+			for (storage_id s_id : opt_storage_keys)
+			{
+				KW_ECS_ASSERT(validate_storage(s_id))
+			}
+#endif
 
 			
 			if ((_storage_mask[require_storage_keys[require_idxs]] && ...))
