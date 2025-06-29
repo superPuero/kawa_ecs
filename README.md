@@ -55,7 +55,7 @@ int main()
     // iterate over matching archetype
     reg.query
     (
-        [](Position& p, const Velocity& v)
+        [](Position& p, Velocity& v)
         {
           p.x += v.x; p.y += v.y;
         }
