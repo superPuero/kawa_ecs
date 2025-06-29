@@ -68,18 +68,22 @@ int main()
 
 ## 📚 API Cheat‑Sheet
 
-| Call                                 | Purpose                                  |
-| -------------------------------------| ---------------------------------------- |
-| `registry(size_t max_entities)`      | Construct a registry                     |
-| `entity_id entity()`                 | Allocate new entity or returns `nullent` |
-| `emplace<T>(id, args…)`              | Construct component `T` on entity        |
-| `erase<T>(id)`                       | Destroy component `T`                    |
-| `has<T>(id)`                         | Check presence                           |
-| `get<T>(id)` / `get_if_has<T>(id)`   | Access (ref / pointer)                   |
-| `query(fn, args…)`                   | Iterate matching entities                |
-| `query_with(id, fn, args…)`          | Call `fn` if entity matches              |
-| `destroy(id)`                        | Remove entity & all its components       |
-| `entity_with<Ts...>(Ts{args...}...)` | Create an entity and emplace components  |
+| Call                                 | Purpose                                             |
+| -------------------------------------| ----------------------------------------------------|
+| `registry(size_t max_entities)`      | Construct a registry                                |
+| `entity_id entity()`                 | Allocate new entity or returns `nullent`            |
+| `emplace<T>(id, args…)`              | Construct component `T` on entity                   |
+| `erase<T>(id)`                       | Destroy component `T`                               |
+| `has<T>(id)`                         | Check presence                                      |
+| `get<T>(id)` / `get_if_has<T>(id)`   | Access (ref / pointer)                              |
+| `query(fn, args…)`                   | Iterate matching entities                           |
+| `copy<Ts...>(from, to)`              | Copies specified components                         |
+| `move<Ts...>(from, to)`              | Moves specified components, move semantics freindly |
+| `query_with(id, fn, args…)`          | Call `fn` if entity matches                         |
+| `destroy(id)`                        | Remove entity & all its components                  |
+| `entity_with<Ts...>(Ts{args...}...)` | Create an entity and emplace components             |
+| -------------------------------------| ----------------------------------------------------|
+
 
 ---
 
