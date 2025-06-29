@@ -69,7 +69,8 @@ int main()
 | Call                                 | Purpose                                             |
 | -------------------------------------| ----------------------------------------------------|
 | `registry(size_t max_entities)`      | Construct a registry                                |
-| `entity_id entity()`                 | Allocate new entity or returns `nullent`            |
+| `entity()`                           | Allocate new entity or returns `nullent`            |
+| `entity_with<Ts...>(Ts{args...}...)` | Create an entity and emplace components             |
 | `emplace<T>(id, args…)`              | Construct component `T` on entity                   |
 | `erase<T>(id)`                       | Destroy component `T`                               |
 | `has<T>(id)`                         | Check presence                                      |
@@ -78,9 +79,7 @@ int main()
 | `query_with(id, fn, args…)`          | Query specific entity                               |
 | `copy<Ts...>(from, to)`              | Copies specified components                         |
 | `move<Ts...>(from, to)`              | Moves specified components, move semantics freindly |
-| `query_with(id, fn, args…)`          | Call `fn` if entity matches                         |
 | `destroy(id)`                        | Remove entity & all its components                  |
-| `entity_with<Ts...>(Ts{args...}...)` | Create an entity and emplace components             |
 | -------------------------------------| ----------------------------------------------------|
 
 
