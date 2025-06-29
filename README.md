@@ -95,7 +95,7 @@ Each group:
 
 | Group            | Type signature example        | Notes                                            |
 |------------------|-------------------------------|--------------------------------------------------|
-| **Fall-through** | `float`, `int&`, `std::string*`| `Passed in` from outside (mimics lambda capture) |
+| **Fall-through** | `T`, `T&`, `T*`               | `Passed in` from outside (mimics lambda capture) |
 | **Required**     | `Component& / Component`      | Entity must have this to match                   |
 | **Optional**     | `Component*`                  | Null if the entity lacks the component           |
 
