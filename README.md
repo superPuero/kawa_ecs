@@ -125,12 +125,16 @@ Each group:
 
 - Groups **must appear in this strict order**:  
   `fall-through` → `required` → `optional`
-- **Each group may be empty**, but **no interleaving** allowed.
+- **Each group may be empty**
+ 
+---
+
 - ✅ Valid:
 
 ```cpp
 reg.query([](float dt, Position& pos, Velocity& vel), dt);
 reg.query([](Position& pos, Label* label));
+reg.query([](float dt, Label* label), dt);
 ```
 
 - ❌ Invalid:
