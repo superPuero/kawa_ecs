@@ -80,8 +80,6 @@ int main()
 | `copy<Ts...>(from, to)`              | Copies specified components                         |
 | `move<Ts...>(from, to)`              | Moves specified components, move semantics freindly |
 | `destroy(id)`                        | Remove entity & all its components                  |
-| -------------------------------------| ----------------------------------------------------|
-
 
 ---
 
