@@ -77,6 +77,7 @@ int main()
 | `has<T>(id)`                         | Check presence                                      |
 | `get<T>(id)` / `get_if_has<T>(id)`   | Access (ref / pointer)                              |
 | `query(fn, args…)`                   | Iterate matching entities                           |
+| `query_with(id, fn, args…)`          | Query specific entity                               |
 | `copy<Ts...>(from, to)`              | Copies specified components                         |
 | `move<Ts...>(from, to)`              | Moves specified components, move semantics freindly |
 | `query_with(id, fn, args…)`          | Call `fn` if entity matches                         |
