@@ -1,22 +1,24 @@
 // ===== kawa::ecs Example Usage & Documentation =====
 
 #include "registry.h"
+#include <iostream>
+#include <string>
 
 // Define user components
 
-struct Position
+struct Position 
 {
     float x;
     float y;
 };
 
-struct Velocity
+struct Velocity 
 {
     float x;
     float y;
 };
 
-struct Label
+struct Label 
 {
     std::string name;
 };
@@ -28,6 +30,8 @@ void display_labels(Label& label)
     std::cout << label.name << '\n';
 }
 
+// Example with fall-through argument (delta_time)
+
 void update_position(float dt, Position& pos, Velocity& vel)
 {
     pos.x += vel.x * dt;
@@ -38,102 +42,109 @@ int main(int argc, char** argv) {
     using namespace kawa::ecs;
 
     // === 1. Constructing the Registry ===
-    // The registry is the core of kawa::ecs and manages all entities and components.
-    // You must provide the maximum number of entities the registry can hold.
-    registry reg(256);
+    registry reg(256);  // Provide max amout of entities upfront
 
     // === 2. Creating Entities ===
-    // Use reg.entity() to allocate a new entity.
-    // If entity pool is exhausted, a special `nullent` is returned.
     entity_id e1 = reg.entity();
     entity_id e2 = reg.entity();
-    entity_id e3 = reg.entity();
+
+    // Using entity_with to streamline entity creation
+
+    entity_id e3 = reg.entity_with
+    (
+        Position{ 10, 20 }, 
+        Velocity{ 1, 1 }, 
+        Label{ "Ichigo" }
+    );
+
     entity_id e4 = reg.entity();
 
-    // Example: checking entity validity
-    if (e1 == nullent || !e1)
-    {
+    // Check entity validity
+    if (e1 == nullent || !e1) {
         std::cout << "Invalid entity!" << '\n';
     }
 
     // === 3. Adding Components ===
-    // Use emplace<T>(id, args...) to add a component of type T to entity `id`.
-    // Pass constructor arguments directly.
     reg.emplace<Position>(e1, 12.4f, 34.6f);
     reg.emplace<Position>(e2, 21.8f, 43.2f);
-    reg.emplace<Position>(e3, 34.1f, 21.5f);
 
     reg.emplace<Velocity>(e1, 2.0f, 3.0f);
     reg.emplace<Velocity>(e2, 2.0f, 4.0f);
-    reg.emplace<Velocity>(e3, 3.0f, 2.0f);
 
     reg.emplace<Label>(e1, "Dude");
     reg.emplace<Label>(e2, "Foo");
-    reg.emplace<Label>(e3, "Ichigo");
 
     // === 4. Accessing Components ===
-
-    // Use get<T>(id) to get a reference to a required component.
-    Position& pos_e1 = reg.get<Position>(e1);
-
-    // Use get_if_has<T>(id) for optional access.
-    // Returns a pointer or nullptr if the component doesn't exist.
-    Label* label_e2 = reg.get_if_has<Label>(e2);
+    Position& pos_e1 = reg.get<Position>(e1);  // Required (must exist)
+    Label* label_e2 = reg.get_if_has<Label>(e2); // Optional (may be nullptr)
 
     // === 5. Component Management ===
-
-    // Remove a component from an entity.
     reg.erase<Label>(e2);
-
-    // Check if an entity has a given component.
     bool has = reg.has<Label>(e3);
 
-    // === 6. Querying Entities ===
+    // === 6. Querying semtantics ===
+    // kawa::ecs query supports function signatures of the form:
+    // 
+    //   [fall-through -> required -> optional]
+    //
+    // The argument groups must appear in this strict order:
+    //  1. Fall-through arguments (can be any value, may be reference or pointer)
+    //  2. Required components (T& or T ...) (references in case of T&, copies in case of T)
+    //  3. Optional components (T* ...) 
+    //
+    // !!! You may NOT reorder or mix between groups.
+    // !!! Each group can be any size (including empty).
+    //
+    // Valid:
+    //     (float dt, Position& pos, Velocity& vel)
+    //     (Position& pos, Label* optLabel)
+    //
+    // Invalid:
+    //     (Position& pos, float dt), dt   // !!! fall-through must be first
+    //     (Position& pos, Label* opt, Velocity& vel) // !!! optional can't be in the middle
 
-    // A query will iterate over all entities that match the component signature.
 
-    // Inline lambda that queries for all Labels.
+    // -- Basic query: only entities with Label will be matched
     reg.query
     (
-        [](Label& label)
+        [](Label& label) 
         {
             std::cout << label.name << '\n';
         }
     );
 
-    // Passing a pre-defined function.
+    // -- Query using external function
     reg.query(display_labels);
 
     float delta_time = 0.16f;
 
-    // Inline lambda with capture and multiple components.
+    // -- Query with multiple required components (Position & Velocity)
     reg.query
     (
-        [&](Position& pos, Velocity& vel)
+        [&](Position& pos, Velocity& vel) 
         {
             pos.x += vel.x * delta_time;
             pos.y += vel.y * delta_time;
         }
     );
 
-    // Lambda with external fall-thorough argument (delta_time passed in)
+    // -- Query with fall-through argument:
+    // `float dt` is passed in, NOT fetched from component storage.
     reg.query
     (
-        [](float dt, Position& pos, Velocity& vel)
+        [](float dt, Position& pos, Velocity& vel) 
         {
             pos.x += vel.x * dt;
             pos.y += vel.y * dt;
-        },
-        delta_time
+        }
+        , delta_time
     );
 
-    // Passing a function that matches the query signature with fall-thorough argument (delta_time passed in).
+    // -- Query with external function and fall-through argument
     reg.query(update_position, delta_time);
 
-    // === 7. Using reference fall-through arguments ===
+    // === Querying with reference fall-through arguments ===
 
-
-    // Accumulator example  
     float sum_pos_x = 0;
     reg.query
     (
@@ -141,15 +152,28 @@ int main(int argc, char** argv) {
         {
             accm += pos.x;
             std::cout << "Sum x is " << accm << " now" << '\n';
-        },
-        sum_pos_x
+        }
+        , sum_pos_x
     );
 
-    // === 8. Single-entity Query ===
-    // Useful for directly operating on a known entity.
+    // === Optional components ===
+    // Only entities with Position will be matched, Label will be nullptr for those who does not have it.
+    reg.query
+    (
+        [](Position& pos, Label* label_opt) 
+        {
+            std::cout << "Position: (" << pos.x << ", " << pos.y << ")";
+
+            std::cout << " Label: " << (label_opt ? label_opt->name : "-");
+
+            std::cout << '\n';
+        }
+    );
+
+    // === 9. Single-entity Query ===
     reg.query_with(e3, update_position, delta_time);
 
-    // === 9. Destroying an Entity ===
+    // === 10. Destroying an Entity ===
     reg.destroy(e3);
 
     return 0;
