@@ -92,6 +92,22 @@ int main(int argc, char** argv) {
     // === 6. Querying semantics ===
     // kawa::ecs query supports function signatures of the form:
     //   [fall-through -> required -> optional]
+    // 
+    // The argument groups must appear in this strict order:
+    //  1. Fall-through arguments (can be any value, may be reference or pointer)
+    //  2. Required components (T& or T ...) (references in case of T&, copies in case of T)
+    //  3. Optional components (T* ...) 
+    //
+    // !!! You may NOT reorder or mix between groups.
+    // !!! Each group can be any size (including empty).
+    //
+    // Valid:
+    //     (float dt, Position& pos, Velocity& vel)
+    //     (Position& pos, Label* optLabel)
+    //
+    // Invalid:
+    //     (Position& pos, float dt), dt   // !!! fall-through must be first
+    //     (Position& pos, Label* opt, Velocity& vel) // !!! optional can't be in the middle
 
     reg.query
     (
