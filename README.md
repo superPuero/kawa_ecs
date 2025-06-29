@@ -14,6 +14,17 @@
 
 ---
 
+## 🏗️ Building & Using
+
+1. Copy **`registry.h`** into your include path.
+2. `#include "registry.h"`.
+3. Compile with **C++20**.
+4. Profit.
+
+No third‑party dependencies, no linkage order headaches.
+
+---
+
 ## ✨ Features 
 
 | 🚀                                | What                                                           | Details                                             |
@@ -146,16 +157,6 @@ reg.query([](Position& pos, Label* opt, Velocity& vel)); // ❌ optional must co
 
 ---
 
-## 🏗️ Building & Using
-
-1. Copy **`registry.h`** into your include path.
-2. `#include "registry.h"`.
-3. Compile with **C++20**.
-4. Profit.
-
-No third‑party dependencies, no linkage order headaches.
-
----
 
 ## 🔄 Roadmap
 
