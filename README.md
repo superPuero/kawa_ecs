@@ -78,20 +78,21 @@ int main()
 
 ## 📚 API Cheat‑Sheet
 
-| Call                                 | Purpose                                             |
-| -------------------------------------| ----------------------------------------------------|
-| `registry(size_t max_entities)`      | Construct a registry                                |
-| `entity()`                           | Allocate new entity or returns `nullent`            |
-| `entity_with<Ts...>(Ts{args...}...)` | Create an entity and emplace components             |
-| `emplace<T>(id, args…)`              | Construct component `T` on entity                   |
-| `erase<T>(id)`                       | Destroy component `T`                               |
-| `has<T>(id)`                         | Check presence                                      |
-| `get<T>(id)` / `get_if_has<T>(id)`   | Access (ref / pointer)                              |
-| `query(fn, args…)`                   | Iterate matching entities                           |
-| `query_with(id, fn, args…)`          | Query specific entity                               |
-| `copy<Ts...>(from, to)`              | Copies specified components                         |
-| `move<Ts...>(from, to)`              | Moves specified components, move semantics freindly |
-| `destroy(id)`                        | Remove entity & all its components                  |
+| Call                                 | Purpose																	 |
+| -------------------------------------| ----------------------------------------------------------------------------|
+| `registry(size_t max_entities)`      | Construct a registry														 |
+| `entity()`                           | Allocate new entity or returns `nullent`									 |
+| `entity_with<Ts...>(Ts{args...}...)` | Create an entity and emplace components									 |
+| `emplace<T>(id, args…)`              | Construct component `T` on entity											 |
+| `erase<T>(id)`                       | Destroy component `T`														 |
+| `has<T>(id)`                         | Check presence																 |
+| `get<T>(id)` / `get_if_has<T>(id)`   | Access (ref / pointer)														 |
+| `query(fn, args…)`                   | Iterate matching entities													 |
+| `query_self(fn, args…)`              | Iterate matching entities, puts current entity id into first `fn` parameter |
+| `query_with(id, fn, args…)`          | Query specific entity														 |
+| `copy<Ts...>(from, to)`              | Copies specified components												 |
+| `move<Ts...>(from, to)`              | Moves specified components, move semantics freindly						 |
+| `destroy(id)`                        | Remove entity & all its components											 |
 
 ---
 
