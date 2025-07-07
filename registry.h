@@ -59,19 +59,10 @@ namespace meta
 		static_assert(Start <= End, "Start index must be <= End");
 
 		template<typename Tuple>
-		using of = decltype([]<std::size_t... I>(std::index_sequence<I...>) {
+		using of = decltype([]<std::size_t... I>(std::index_sequence<I...>) 
+		{
 			return std::tuple<std::tuple_element_t<Start + I, Tuple>...>{};
 		}(std::make_index_sequence<End - Start>{}));
-	};
-
-	template<typename tuple, size_t Offset, size_t...I>
-	constexpr auto slice_tuple_impl(std::index_sequence<I...>) -> std::tuple<std::tuple_element_t<Offset + I, tuple>...> {};
-
-	template<typename tuple>
-	struct slice_tuple
-	{
-		template<size_t I>
-		using at = decltype(slice_tuple_impl<tuple, I>(std::make_index_sequence<std::tuple_size_v<tuple> - I>{}));
 	};
 
 	template<typename RetTy, typename...ArgTy>
@@ -110,7 +101,6 @@ namespace ecs
 	constexpr inline entity_id nullent = 0;
 	namespace _internal
 	{
-
 		class poly_storage
 		{
 			using erase_fn_t = void(*)(void*, size_t);
@@ -166,7 +156,7 @@ namespace ecs
 		public:
 			inline bool has(size_t index) noexcept
 			{
-				KW_ECS_ASSERT(validate(index));
+				KW_ECS_ASSERT(_validate_index(index));
 
 				return _mask[index];
 			}
@@ -174,7 +164,7 @@ namespace ecs
 			template<typename T, typename...Args>
 			inline T& emplace(size_t index, Args&&...args)  noexcept
 			{
-				KW_ECS_ASSERT(validate(index));
+				KW_ECS_ASSERT(_validate_index(index));
 
 				bool& cell = _mask[index];
 				if (!cell)
@@ -200,7 +190,7 @@ namespace ecs
 			template<typename T>
 			inline T& get(size_t index) noexcept
 			{
-				KW_ECS_ASSERT(validate(index));
+				KW_ECS_ASSERT(_validate_index(index));
 
 				return *(static_cast<T*>(_storage) + index);
 			}
@@ -208,7 +198,7 @@ namespace ecs
 			template<typename T>
 			inline T* get_if_has(size_t index) noexcept
 			{
-				KW_ECS_ASSERT(validate(index));
+				KW_ECS_ASSERT(_validate_index(index));
 
 				if (_mask[index])
 				{
@@ -219,7 +209,7 @@ namespace ecs
 
 			inline void erase(size_t index) noexcept
 			{
-				KW_ECS_ASSERT(validate(index));
+				KW_ECS_ASSERT(_validate_index(index));
 
 				bool& cell = _mask[index];
 				if (cell)
@@ -238,8 +228,8 @@ namespace ecs
 			template<typename T>
 			inline void copy(size_t from, size_t to) noexcept
 			{
-				KW_ECS_ASSERT(validate(from));
-				KW_ECS_ASSERT(validate(to));
+				KW_ECS_ASSERT(_validate_index(from));
+				KW_ECS_ASSERT(_validate_index(to));
 
 				if (has(from))
 				{
@@ -250,8 +240,8 @@ namespace ecs
 			template<typename T>
 			inline void move(size_t from, size_t to) noexcept
 			{
-				KW_ECS_ASSERT(validate(from));
-				KW_ECS_ASSERT(validate(to));
+				KW_ECS_ASSERT(_validate_index(from));
+				KW_ECS_ASSERT(_validate_index(to));
 
 				if (has(from))
 				{
@@ -260,7 +250,7 @@ namespace ecs
 				}
 			}
 
-			inline bool validate(size_t id) noexcept
+			inline bool _validate_index(size_t id) noexcept
 			{
 				if (id >= _capacity)
 				{
@@ -287,10 +277,12 @@ namespace ecs
 
 	class registry
 	{
+
 		template<typename T>
 		static inline storage_id get_storage_id() noexcept
 		{
 			static storage_id id = _storage_id_counter++;
+			KW_ECS_ASSERT_MSG(id < KW_MAX_UNIQUE_STORAGE_COUNT, "max amoount os storage ids reached, increase KW_MAX_UNIQUE_STORAGE_COUNT for more avaliable storage ids");
 			return id;
 		}
 
@@ -364,11 +356,9 @@ namespace ecs
 		template<typename T, typename...Args>
 		inline T& emplace(entity_id entity, Args&&...args) noexcept
 		{
-			KW_ECS_ASSERT(validate_entity(entity));
+			KW_ECS_ASSERT(_validate_entity(entity));
 
 			storage_id s_id = get_storage_id<T>();
-
-			KW_ECS_ASSERT(validate_storage(s_id));
 
 			bool& storage_cell = _storage_mask[s_id];
 
@@ -386,7 +376,7 @@ namespace ecs
 		template<typename T>
 		inline void erase(entity_id entity) noexcept
 		{
-			KW_ECS_ASSERT(validate_entity(entity));
+			KW_ECS_ASSERT(_validate_entity(entity));
 
 			bool& entity_cell = _entity_mask[entity];
 
@@ -405,15 +395,13 @@ namespace ecs
 		template<typename T>
 		inline bool has(entity_id entity) noexcept
 		{
-			KW_ECS_ASSERT(validate_entity(entity));
+			KW_ECS_ASSERT(_validate_entity(entity));
 
 			bool& entity_cell = _entity_mask[entity];
 
 			if (entity_cell)
 			{
 				storage_id s_id = get_storage_id<T>();
-
-				KW_ECS_ASSERT(validate_storage(s_id));
 
 				if (_storage_mask[s_id])
 				{
@@ -429,11 +417,9 @@ namespace ecs
 		template<typename T>
 		inline T& get(entity_id entity) noexcept
 		{
-			KW_ECS_ASSERT(validate_entity(entity));
+			KW_ECS_ASSERT(_validate_entity(entity));
 
 			storage_id s_id = get_storage_id<T>();
-
-			KW_ECS_ASSERT(validate_storage(s_id));
 
 			return _storage[s_id].get<T>(entity);
 		}
@@ -441,15 +427,13 @@ namespace ecs
 		template<typename T>
 		inline T* get_if_has(entity_id entity) noexcept
 		{
-			KW_ECS_ASSERT(validate_entity(entity));
+			KW_ECS_ASSERT(_validate_entity(entity));
 
 			bool& entity_cell = _entity_mask[entity];
 
 			if (entity_cell)
 			{
 				storage_id s_id = get_storage_id<T>();
-
-				KW_ECS_ASSERT(validate_storage(s_id));
 
 				if (_storage_mask[s_id])
 				{
@@ -465,15 +449,12 @@ namespace ecs
 		template<typename...Args>
 		inline void copy(entity_id from, entity_id to) noexcept
 		{
-			KW_ECS_ASSERT(validate_entity(from));
-			KW_ECS_ASSERT(validate_entity(to));
+			KW_ECS_ASSERT(_validate_entity(from));
+			KW_ECS_ASSERT(_validate_entity(to));
 
 			(([&]<typename T>()
 			{	
 				storage_id s_id = get_storage_id<T>();
-
-				KW_ECS_ASSERT(validate_storage(s_id));
-
 				_storage[s_id].copy<T>(from, to);
 
 			}. template operator()<Args>()), ...);
@@ -482,14 +463,12 @@ namespace ecs
 		template<typename...Args>
 		inline void move(entity_id from, entity_id to) noexcept
 		{
-			KW_ECS_ASSERT(validate_entity(from));
-			KW_ECS_ASSERT(validate_entity(to));
+			KW_ECS_ASSERT(_validate_entity(from));
+			KW_ECS_ASSERT(_validate_entity(to));
 
 			(([&]<typename T>()
 			{
 				storage_id s_id = get_storage_id<T>();
-
-				KW_ECS_ASSERT(validate_storage(s_id));
 
 				_storage[s_id].move<T>(from, to);
 
@@ -498,7 +477,7 @@ namespace ecs
 
 		inline void destroy(entity_id entity) noexcept
 		{
-			KW_ECS_ASSERT(validate_entity(entity));
+			KW_ECS_ASSERT(_validate_entity(entity));
 
 			bool& entity_cell = _entity_mask[entity];
 
@@ -541,36 +520,65 @@ namespace ecs
 
 			if constexpr (args_count == params_count)
 			{
-				fn(std::forward<Params>(params)...);
-			}
-			else if constexpr (opt_args_count)
-			{
-				if constexpr (!require_args_count)
+				for (size_t i = 0; i < _entries_counter; i++)
 				{
-					_query_opt_impl<Fn, opt_args_tuple>
-						(
-							std::forward<Fn>(fn),
-							std::make_index_sequence<std::tuple_size_v<opt_args_tuple>>{},
-							std::forward<Params>(params)...
-						);
+					entity_id e = _entity_entries[i];
+					if (_entity_mask[e])
+					{
+						fn(std::forward<Params>(params)...);
+					}
 				}
-				else
+			}
+			else 
+			{
+				_query_impl<Fn, require_args_tuple, opt_args_tuple>
+					(
+						std::forward<Fn>(fn),
+						std::make_index_sequence<std::tuple_size_v<require_args_tuple>>{},
+						std::make_index_sequence<std::tuple_size_v<opt_args_tuple>>{},
+						std::forward<Params>(params)...
+					);
+			}
+		}
+
+		template<typename Fn, typename...Params>
+		inline void query_self(Fn&& fn, Params&&...params) noexcept
+		{
+			constexpr size_t params_count = sizeof...(Params) + 1;
+
+			using args_tuple = meta::function_traits<Fn>::args_tuple;			
+
+			static_assert(std::is_same_v<std::tuple_element_t<0, args_tuple>, entity_id > , "callable passed to query_self must take kawa::ecs::entity_id as a first parameter");
+
+			constexpr size_t args_count = std::tuple_size_v<args_tuple>;
+
+			using no_params_args_tuple = meta::sub_tuple<params_count, std::tuple_size_v<args_tuple>>::template of<args_tuple>;
+
+			constexpr size_t opt_args_count = meta::get_ptr_type_count_tuple<no_params_args_tuple>();
+
+			using require_args_tuple = meta::sub_tuple<0, std::tuple_size_v<no_params_args_tuple> -opt_args_count>::template of<no_params_args_tuple>;
+			constexpr size_t require_args_count = std::tuple_size_v<require_args_tuple>;
+
+			using opt_args_tuple = meta::sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
+
+			if constexpr (args_count  == params_count)
+			{
+				for (size_t i = 0; i < _entries_counter; i++)
 				{
-					_query_req_opt_impl<Fn, require_args_tuple, opt_args_tuple>
-						(
-							std::forward<Fn>(fn),
-							std::make_index_sequence<std::tuple_size_v<require_args_tuple>>{},
-							std::make_index_sequence<std::tuple_size_v<opt_args_tuple>>{},
-							std::forward<Params>(params)...
-						);
+					entity_id e = _entity_entries[i];
+					if (_entity_mask[e])
+					{
+						fn(e, std::forward<Params>(params)...);
+					}
 				}
 			}
 			else
 			{
-				_query_req_impl<Fn, require_args_tuple>
+				_query_self_impl<Fn, require_args_tuple, opt_args_tuple>
 					(
 						std::forward<Fn>(fn),
 						std::make_index_sequence<std::tuple_size_v<require_args_tuple>>{},
+						std::make_index_sequence<std::tuple_size_v<opt_args_tuple>>{},
 						std::forward<Params>(params)...
 					);
 			}
@@ -579,8 +587,7 @@ namespace ecs
 		template<typename Fn, typename...Params>
 		inline void query_with(entity_id entity, Fn fn, Params&&...params) noexcept
 		{
-
-			KW_ECS_ASSERT(validate_entity(entity));
+			KW_ECS_ASSERT(_validate_entity(entity));
 
 			constexpr size_t params_count = sizeof...(Params);
 
@@ -601,66 +608,51 @@ namespace ecs
 				{
 					fn(std::forward<Params>(params)...);
 				}
-				else if constexpr (opt_args_count)
-				{
-					if constexpr (!require_args_count)
-					{
-						_query_with_opt_impl<Fn, opt_args_tuple>
-							(
-								entity,
-								std::forward<Fn>(fn),
-								std::make_index_sequence<std::tuple_size_v<opt_args_tuple>>{},
-								std::forward<Params>(params)...
-							);
-					}
-					else
-					{
-						_query_with_req_opt_impl<Fn, require_args_tuple, opt_args_tuple>
-							(
-								entity,
-								std::forward<Fn>(fn),
-								std::make_index_sequence<std::tuple_size_v<require_args_tuple> -1>{},
-								std::make_index_sequence<std::tuple_size_v<opt_args_tuple>>{},
-								std::forward<Params>(params)...
-							);
-					}
-				}
 				else
 				{
-					_query_with_req_impl<Fn, require_args_tuple>
+					_query_with_impl<Fn, require_args_tuple, opt_args_tuple>
 						(
 							entity,
 							std::forward<Fn>(fn),
 							std::make_index_sequence<std::tuple_size_v<require_args_tuple>>{},
+							std::make_index_sequence<std::tuple_size_v<opt_args_tuple>>{},
 							std::forward<Params>(params)...
 						);
 				}
 			}
 		}
 
-	private:
-		template<typename Fn, typename rquire_tuple, size_t...require_idxs, typename...Params>
-		inline void _query_req_impl(Fn&& fn, std::index_sequence<require_idxs...>, Params&&...params) noexcept
+	private: 
+		template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params> 
+		inline void _query_impl(Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 		{
+			constexpr size_t req_count = sizeof...(req_idxs);
+			constexpr size_t opt_count = sizeof...(opt_idxs);
 
-			storage_id require_storage_keys[sizeof...(require_idxs)] =
-			{ 
-				get_storage_id<std::tuple_element_t<require_idxs, rquire_tuple>>()...,
-			};
-
-	#ifdef _DEBUG
-			for (storage_id s_id : require_storage_keys)
+			if constexpr (req_count && opt_count)
 			{
-				KW_ECS_ASSERT(validate_storage(s_id))
-			}
-	#endif
-			if ((_storage_mask[require_storage_keys[require_idxs]] && ...))
-			{
-				_internal::poly_storage* storages[sizeof...(require_idxs)] = { &_storage[require_storage_keys[require_idxs]]... };
+				storage_id require_storage_keys[req_count] =
+				{
+					get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
+				};
 
-				_internal::poly_storage* smallest = storages[0];
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
 
-				for (_internal::poly_storage* st : storages)
+				storage_id opt_storage_keys[opt_count] =
+				{
+					get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
+				};
+
+
+				_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
+				_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+
+				_internal::poly_storage* smallest = req_storages[0];
+
+				for (_internal::poly_storage* st : req_storages)
 				{
 					if (st->_occupied < smallest->_occupied)
 					{
@@ -671,75 +663,49 @@ namespace ecs
 				for (size_t i = 0; i < smallest->_occupied; i++)
 				{
 					entity_id e = smallest->_connector[i];
-																		
-					if ((storages[require_idxs]->has(e) && ...))
+					if ((req_storages[req_idxs]->has(e) && ...))
 					{
-						fn(std::forward<Params>(params)..., storages[require_idxs]->get<std::tuple_element_t<require_idxs, rquire_tuple>>(e)...);
+						fn(std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
 					}
 				}
 			}
-		}
 
-		template<typename Fn, typename opt_tuple, size_t...opt_idxs, typename...Params>
-		inline void _query_opt_impl(Fn&& fn, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
-		{
-			storage_id opt_storage_keys[sizeof...(opt_idxs)] =
+			else if constexpr(!req_count)
 			{
-				get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-			};
+				storage_id opt_storage_keys[opt_count] =
+				{
+					get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
+				};
 
-#ifdef _DEBUG
-			for (storage_id s_id : opt_storage_keys)
-			{
-				KW_ECS_ASSERT(validate_storage(s_id))
+				_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+
+				for (size_t i = 0; i < _entries_counter; i++)
+				{
+					entity_id e = _entity_entries[i];
+					if (_entity_mask[e])
+					{
+						fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+					}
+				}
 			}
-#endif
-
-			_internal::poly_storage* opt_storages[std::tuple_size_v<opt_tuple>] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
-
-			for (size_t i = 0; i < _entries_counter; i++)
+			else
 			{
-				entity_id e = _entity_entries[i];
-				fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
-			}
+				storage_id require_storage_keys[req_count] =
+				{
+					get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
+				};
 
-		}
+																													
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
 
-		template<typename Fn, typename require_tuple, typename opt_tuple, size_t...require_idxs, size_t...opt_idxs, typename...Params>
-		inline void _query_req_opt_impl(Fn&& fn, std::index_sequence<require_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
-		{
-			storage_id require_storage_keys[sizeof...(require_idxs)] =
-			{
-				get_storage_id<std::tuple_element_t<require_idxs, require_tuple>>()...,
-			};
+				_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
 
-#ifdef _DEBUG
-			for (storage_id s_id : require_storage_keys)
-			{
-				KW_ECS_ASSERT(validate_storage(s_id))
-			}
-#endif
+				_internal::poly_storage* smallest = req_storages[0];
 
-			storage_id opt_storage_keys[sizeof...(opt_idxs)] =
-			{
-				get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-			};
-
-#ifdef _DEBUG
-			for (storage_id s_id : opt_storage_keys)
-			{
-				KW_ECS_ASSERT(validate_storage(s_id))
-			}
-#endif
-
-			if ((_storage_mask[require_storage_keys[require_idxs]] && ...))
-			{
-				_internal::poly_storage* storages[sizeof...(require_idxs)] = { &_storage[require_storage_keys[require_idxs]]... };
-				_internal::poly_storage* opt_storages[std::tuple_size_v<opt_tuple>] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
-
-				_internal::poly_storage* smallest = storages[0];
-
-				for (_internal::poly_storage* st : storages)
+				for (_internal::poly_storage* st : req_storages)
 				{
 					if (st->_occupied < smallest->_occupied)
 					{
@@ -750,35 +716,145 @@ namespace ecs
 				for (size_t i = 0; i < smallest->_occupied; i++)
 				{
 					entity_id e = smallest->_connector[i];
-					if ((storages[require_idxs]->has(e) && ...))
+					if ((req_storages[req_idxs]->has(e) && ...))
 					{
-						fn(std::forward<Params>(params)..., storages[require_idxs]->get<std::tuple_element_t<require_idxs, require_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+						fn(std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
 					}
 				}
 			}
+
 		}
 
-		template<typename Fn, typename require_tuple, size_t...require_idxs, typename...Params>
-		inline void _query_with_req_impl(entity_id entity, Fn&& fn, std::index_sequence<require_idxs...>, Params&&...params) noexcept
+		template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params> 
+		inline void _query_self_impl(Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 		{
-			storage_id require_storage_keys[sizeof...(require_idxs)] =
-			{
-				get_storage_id<std::tuple_element_t<require_idxs, require_tuple>>()...,
-			};
+			constexpr size_t req_count = sizeof...(req_idxs);
+			constexpr size_t opt_count = sizeof...(opt_idxs);
 
-#ifdef _DEBUG
-			for (storage_id s_id : require_storage_keys)
+			if constexpr (req_count && opt_count)
 			{
-				KW_ECS_ASSERT(validate_storage(s_id))
+				storage_id require_storage_keys[req_count] =
+				{
+					get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
+				};
+
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
+
+				storage_id opt_storage_keys[opt_count] =
+				{
+					get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
+				};
+
+				_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
+				_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+
+				_internal::poly_storage* smallest = req_storages[0];
+
+				for (_internal::poly_storage* st : req_storages)
+				{
+					if (st->_occupied < smallest->_occupied)
+					{
+						smallest = st;
+					}
+				}
+
+				for (size_t i = 0; i < smallest->_occupied; i++)
+				{
+					entity_id e = smallest->_connector[i];
+					if ((req_storages[req_idxs]->has(e) && ...))
+					{
+						fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+					}
+				}
 			}
-#endif
-			
-			if ((_storage_mask[require_storage_keys[require_idxs]] && ...))
-			{
-				_internal::poly_storage* storages[sizeof...(require_idxs)] = { &_storage[require_storage_keys[require_idxs]]... };
-				_internal::poly_storage* smallest = storages[0];
 
-				for (_internal::poly_storage* st : storages)
+			else if constexpr(!req_count)
+			{
+				storage_id opt_storage_keys[opt_count] =
+				{
+					get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
+				};
+
+				_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+
+				for (size_t i = 0; i < _entries_counter; i++)
+				{
+					entity_id e = _entity_entries[i];
+					if (_entity_mask[e])
+					{
+						fn(e, std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+					}
+				}
+			}
+			else
+			{
+				storage_id require_storage_keys[req_count] =
+				{
+					get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
+				};
+																													
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
+
+				_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
+
+				_internal::poly_storage* smallest = req_storages[0];
+
+				for (_internal::poly_storage* st : req_storages)
+				{
+					if (st->_occupied < smallest->_occupied)
+					{
+						smallest = st;
+					}
+				}
+
+				for (size_t i = 0; i < smallest->_occupied; i++)
+				{
+					entity_id e = smallest->_connector[i];
+					if ((req_storages[req_idxs]->has(e) && ...))
+					{
+						fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
+					}
+				}
+			}
+
+		}
+
+
+		template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params>
+		inline void _query_with_impl(entity_id entity, Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
+		{
+			constexpr size_t req_count = sizeof...(req_idxs);
+			constexpr size_t opt_count = sizeof...(opt_idxs);
+
+			if constexpr (req_count && opt_count)
+			{
+				storage_id require_storage_keys[req_count] =
+				{
+					get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
+				};
+
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
+
+				storage_id opt_storage_keys[opt_count] =
+				{
+					get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
+				};
+
+				_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
+				_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+
+				_internal::poly_storage* smallest = req_storages[0];
+
+				for (_internal::poly_storage* st : req_storages)
 				{
 					if (st->_occupied < smallest->_occupied)
 					{
@@ -788,70 +864,41 @@ namespace ecs
 
 				if (smallest->has(entity))
 				{
-					if ((storages[require_idxs]->has(entity) && ...))
+					if ((req_storages[req_idxs]->has(entity) && ...))
 					{
-						fn(std::forward<Params>(params)..., storages[require_idxs]->get<std::tuple_element_t<require_idxs, require_tuple>>(entity)...);
+						fn(std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(entity)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(entity) : nullptr)...);
 					}
 				}
 			}
-		
-		}
 
-		template<typename Fn, typename opt_tuple, size_t...opt_idxs, typename...Params>
-		inline void _query_with_opt_impl(entity_id entity, Fn&& fn, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
-		{
-			storage_id opt_storage_keys[sizeof...(opt_idxs)] =
+			else if constexpr (!req_count)
 			{
-				get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-			};
-#ifdef _DEBUG
-			for (storage_id s_id : opt_storage_keys)
-			{
-				KW_ECS_ASSERT(validate_storage(s_id))
+				storage_id opt_storage_keys[opt_count] =
+				{
+					get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
+				};
+
+				_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+
+				fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(entity) : nullptr)...);
 			}
-#endif
-
-			_internal::poly_storage* opt_storages[std::tuple_size_v<opt_tuple>] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
-
-			fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(entity) : nullptr)...);
-		}
-
-		template<typename Fn, typename require_tuple, typename opt_tuple, size_t...require_idxs, size_t...opt_idxs, typename...Params>
-		inline void _query_with_req_opt_impl(entity_id entity, Fn&& fn, std::index_sequence<require_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
-		{
-			storage_id require_storage_keys[sizeof...(require_idxs)] =
+			else
 			{
-				get_storage_id<std::tuple_element_t<require_idxs, require_tuple>>()...,
-			};
+				storage_id require_storage_keys[req_count] =
+				{
+					get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
+				};
 
-#ifdef _DEBUG
-			for (storage_id s_id : require_storage_keys)
-			{
-				KW_ECS_ASSERT(validate_storage(s_id))
-			}
-#endif
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
 
-			storage_id opt_storage_keys[sizeof...(opt_idxs)] =
-			{
-				get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-			};
+				_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
 
-#ifdef _DEBUG
-			for (storage_id s_id : opt_storage_keys)
-			{
-				KW_ECS_ASSERT(validate_storage(s_id))
-			}
-#endif
+				_internal::poly_storage* smallest = req_storages[0];
 
-			
-			if ((_storage_mask[require_storage_keys[require_idxs]] && ...))
-			{
-				_internal::poly_storage* storages[sizeof...(require_idxs)] = { &_storage[require_storage_keys[require_idxs]]... };
-				_internal::poly_storage* opt_storages[std::tuple_size_v<opt_tuple>] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
-
-				_internal::poly_storage* smallest = storages[0];
-
-				for (_internal::poly_storage* st : storages)
+				for (_internal::poly_storage* st : req_storages)
 				{
 					if (st->_occupied < smallest->_occupied)
 					{
@@ -861,18 +908,17 @@ namespace ecs
 
 				if (smallest->has(entity))
 				{
-					if ((storages[require_idxs]->has(entity) && ...))
+					if ((req_storages[req_idxs]->has(entity) && ...))
 					{
-						fn(std::forward<Params>(params)..., storages[require_idxs]->get<std::tuple_element_t<require_idxs, require_tuple>>(entity)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(entity) : nullptr)...);
+						fn(std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(entity)...);
 					}
 				}
-			}			
+			}
+
 		}
-
-
 	public:
 
-		inline bool validate_entity(entity_id id) noexcept
+		inline bool _validate_entity(entity_id id) noexcept
 		{
 			if(id == nullent)
 			{
@@ -881,19 +927,7 @@ namespace ecs
 			}
 			else if (id >= _real_capacity)
 			{
-				std::cout << "out of bounds entity access" << '\n';
-				return false;
-			}
-
-			return true;
-		}
-
-		inline bool validate_storage(storage_id id) noexcept
-		{
-
-			if (id >= KW_MAX_UNIQUE_STORAGE_COUNT)
-			{
-				std::cout << "invalid storage, increase KW_MAX_UNIQUE_STORAGE_COUNT for more avaliable storage ids" << '\n';
+				std::cout << "invalid entity usage" << '\n';
 				return false;
 			}
 
@@ -925,4 +959,3 @@ namespace ecs
 	};
 }
 }
-

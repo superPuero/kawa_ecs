@@ -40,8 +40,8 @@ int main()
 
     benchmark
     (
-        "Create Entities", 
-        [&]() 
+        "Create Entities",
+        [&]()
         {
             for (size_t i = 0; i < ENTITY_COUNT; ++i)
                 entities.push_back(reg.entity());
@@ -52,9 +52,9 @@ int main()
 
     benchmark
     (
-        "Add Base Components", [&]() 
+        "Add Base Components", [&]()
         {
-            for (entity_id id : entities) 
+            for (entity_id id : entities)
             {
                 reg.emplace<Vec3>(id, 1.0f, 2.0f, 3.0f);
                 reg.emplace<Velocity>(id, 0.1f, 0.2f, 0.3f);
@@ -66,10 +66,10 @@ int main()
 
     benchmark
     (
-        "Add Extra Components (50%)", 
-        [&]() 
+        "Add Extra Components (50%)",
+        [&]()
         {
-            for (size_t i = 0; i < ENTITY_COUNT; i += 2) 
+            for (size_t i = 0; i < ENTITY_COUNT; i += 2)
             {
                 reg.emplace<Health>(entities[i], 100);
                 reg.emplace<AI>(entities[i], 1);
@@ -79,10 +79,10 @@ int main()
 
     benchmark
     (
-        "Add Tags (Every 10th)", 
-        [&]() 
+        "Add Tags (Every 10th)",
+        [&]()
         {
-            for (size_t i = 0; i < ENTITY_COUNT; i += 10) 
+            for (size_t i = 0; i < ENTITY_COUNT; i += 10)
             {
                 reg.emplace<Tag>(entities[i], "Agent_" + std::to_string(i));
             }
@@ -91,10 +91,10 @@ int main()
 
     benchmark
     (
-        "Add Transforms (Every 4th)", 
-        [&]() 
+        "Add Transforms (Every 4th)",
+        [&]()
         {
-            for (size_t i = 0; i < ENTITY_COUNT; i += 4) 
+            for (size_t i = 0; i < ENTITY_COUNT; i += 4)
             {
                 float mat[16] = {};
                 reg.emplace<Transform>(entities[i], mat);
@@ -104,15 +104,14 @@ int main()
 
     benchmark
     (
-        "Copy Components: Vec3 + Health (50%)", 
-        [&]() 
+        "Copy Components: Vec3 + Health (50%)",
+        [&]()
         {
-            for (size_t i = 0; i < ENTITY_COUNT; i += 2) 
+            for (size_t i = 0; i < ENTITY_COUNT; i += 2)
             {
                 entity_id src = entities[i];
                 entity_id dst = entities[i + 1];
-                reg.copy<Vec3>(src, dst);
-                reg.copy<Health>(src, dst);
+                reg.copy<Vec3, Health>(src, dst);
             }
         }
     );
@@ -127,20 +126,19 @@ int main()
     //        {
     //            entity_id src = entities[i + 1];
     //            entity_id dst = entities[i];
-    //            reg.move<Score>(src, dst);
-    //            reg.move<Velocity>(src, dst);
+    //            reg.move<Score, Velocity>(src, dst);
     //        }
     //    }
     //);
 
     benchmark
     (
-        "Vec3 + Velocity + optional Score", 
-        [&]() 
+        "Vec3 + Velocity + optional Score",
+        [&]()
         {
             reg.query
             (
-                [](Vec3& pos, Velocity& vel, Score* score) 
+                [](Vec3& pos, Velocity& vel, Score* score)
                 {
                     pos.x += vel.x;
                     if (score) pos.y += score->value;
@@ -150,13 +148,13 @@ int main()
 
     benchmark
     (
-        "Fallthrough: delta + Vec3 + Velocity", 
-        [&]() 
+        "Fallthrough: delta + Vec3 + Velocity",
+        [&]()
         {
             float dt = 0.016f;
             reg.query
             (
-                [](float dt, Vec3& pos, Velocity& vel) 
+                [](float dt, Vec3& pos, Velocity& vel)
                 {
                     pos.x += vel.x * dt;
                     pos.y += vel.y * dt;
@@ -169,13 +167,13 @@ int main()
 
     benchmark
     (
-        "Fallthrough + optional AI", 
-        [&]() 
+        "Fallthrough + optional AI",
+        [&]()
         {
             int tick = 42;
             reg.query
             (
-                [](int tick, AI* ai) 
+                [](int tick, AI* ai)
                 {
                     if (ai) ai->state += tick;
                 }
@@ -186,13 +184,13 @@ int main()
 
     benchmark
     (
-        "Optional Health Only", 
-        [&]() 
+        "Optional Health Only",
+        [&]()
         {
             size_t count = 0;
             reg.query
             (
-                [&](Health* hp) 
+                [&](Health* hp)
                 {
                     if (hp) count++;
                 }
@@ -202,31 +200,31 @@ int main()
 
     benchmark
     (
-        "Fallthrough + Score + optional Tag", 
-        [&]() 
+        "Fallthrough + Score + optional Tag",
+        [&]()
         {
             float mult = 1.5f;
             reg.query
             (
-                [](float mult, Score& s, Tag* tag) 
+                [](float mult, Score& s, Tag* tag)
                 {
                     s.value *= mult;
                 }
-            , mult
+                , mult
             );
         }
     );
 
     benchmark
     (
-        "Multiple Fallthroughs + Velocity", 
-        [&]() 
+        "Multiple Fallthroughs + Velocity",
+        [&]()
         {
             float scale = 2.0f;
             float offset = 0.5f;
             reg.query
             (
-                [](float scale, float offset, Velocity& vel) 
+                [](float scale, float offset, Velocity& vel)
                 {
                     vel.x = vel.x * scale + offset;
                 }
@@ -238,15 +236,15 @@ int main()
 
     benchmark
     (
-        "Purely Optional Query", 
-        [&]() 
+        "Purely Optional Query",
+        [&]()
         {
             size_t count = 0;
             reg.query
             (
-                [&](Vec3* p, Velocity* v, Health* h, Tag* t) 
-                {          
-                    if(p&&h) ++count;
+                [&](Vec3* p, Velocity* v, Health* h, Tag* t)
+                {
+                    if (p && h) ++count;
                 }
             );
             std::cout << "Mixed presence count: " << count << '\n';
@@ -255,13 +253,26 @@ int main()
 
     benchmark
     (
-        "Query Vec3 Only", [&]() 
+        "Query Vec3 Only", [&]()
         {
             reg.query
             (
-                [](Vec3& pos) 
+                [](Vec3& pos)
                 {
                     pos.z += 1.0f;
+                }
+            );
+        }
+    );
+    benchmark
+    (
+        "Query Self: Vec3 Only",
+        [&]()
+        {
+            reg.query_self(
+                [](entity_id id, Vec3& pos)
+                {
+                    pos.x += 1.0f;
                 }
             );
         }
@@ -269,12 +280,46 @@ int main()
 
     benchmark
     (
-        "Fallthrough (ref) + Vec3 + Health", [&]() 
+        "Query Self: Fallthrough + Velocity",
+        [&]()
+        {
+            float multiplier = 1.1f;
+            reg.query_self(
+                [](entity_id id, float m, Velocity& v)
+                {
+                    v.x *= m;
+                    v.y *= m;
+                    v.z *= m;
+                },
+                multiplier
+            );
+        }
+    );
+
+    benchmark
+    (
+        "Query Self: Optional Health",
+        [&]()
+        {
+            size_t count = 0;
+            reg.query_self(
+                [&](entity_id id, Health* hp)
+                {
+                    if (hp) count++;
+                }
+            );
+            std::cout << "Query Self - Entities with Health: " << count << "\n";
+        }
+    );
+
+    benchmark
+    (
+        "Fallthrough (ref) + Vec3 + Health", [&]()
         {
             int total = 0;
             reg.query
             (
-                [](int& sum, Vec3& pos, Health* hp) 
+                [](int& sum, Vec3& pos, Health* hp)
                 {
                     if (hp) sum += hp->hp;
                 }
@@ -286,7 +331,7 @@ int main()
 
     benchmark
     (
-        "Destroy All", [&]() 
+        "Destroy All", [&]()
         {
             for (entity_id id : entities)
                 reg.destroy(id);
@@ -296,5 +341,4 @@ int main()
 
     return 0;
 }
-
 

@@ -38,7 +38,8 @@ void update_position(float dt, Position& pos, Velocity& vel)
     pos.y += vel.y * dt;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) 
+{
     using namespace kawa::ecs;
 
     // === 1. Constructing the Registry ===
@@ -83,7 +84,7 @@ int main(int argc, char** argv) {
     // Copy components from e1 to e4 (only Position and Velocity)
     reg.copy<Position, Velocity>(e1, e4);
 
-    // Move components from e2 to e4, levaraging move-semantics (will erase them from e2)
+    // Move components from e2 to e4, leveraging move-semantics (will erase them from e2)
     reg.move<Label>(e2, e4);  
 
     reg.erase<Label>(e2);
@@ -132,10 +133,12 @@ int main(int argc, char** argv) {
 
     reg.query
     (
-        [](float dt, Position& pos, Velocity& vel)
+        [](float dt, Position& pos, Velocity& vel, Label* label)
         {
             pos.x += vel.x * dt;
             pos.y += vel.y * dt;
+			std::cout << "Updated Position for : "
+				<< (label ? label->name : "-") << '\n';
         }
         , delta_time
     );
@@ -164,7 +167,32 @@ int main(int argc, char** argv) {
         }
     );
 
+    // === 6.1. Self Querying===
+    //
+    // query_self differs from `query` in that the **first parameter** of the callback
+    // must be `entity_id`, allowing users to directly access the entity being iterated.
+    //
+    // IMPORTANT:
+    // Do NOT call `reg.destroy(id)` or otherwise destroy the current entity from within a `query_self` loop.
+    // Doing so can invalidate the internal iteration and cause crashes or undefined behavior.
+    // If you need to destroy entities, collect them first:
+    // 
+    // Signature:
+    //     [](entity_id id, fallthrough..., required..., optional...)
+    //
+    // Example:
+    reg.query_self
+    (
+        [](entity_id id, Position& pos, Velocity& vel)
+        {
+            pos.x += vel.x;
+            pos.y += vel.y;
+            std::cout << "Entity " << id << " moved to (" << pos.x << ", " << pos.y << ")\n";
+        }
+    );
+
     // === 7. Single-entity Query ===
+    // First parameter is entity to which query will be applied
     reg.query_with(e3, update_position, delta_time);
 
     // === 8. Destroying an Entity ===
