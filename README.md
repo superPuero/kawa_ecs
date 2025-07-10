@@ -69,13 +69,16 @@ int main()
         }
     );
 
+    float delta_time = 0.16;
     // Parallel query (multi-threaded)
     reg.query_par
     (
-        [](Position& p, Velocity& v)
+        [](float dt, Position& p, Velocity& v)
         {
-            p.x += v.x; p.y += v.y;
+            p.x += v.x * dt;
+            p.y += v.y * dt;
         }
+        , delta_time
     );
 
     return 0;
