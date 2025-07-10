@@ -157,7 +157,7 @@ namespace kawa
 				inline poly_storage() noexcept = default;
 				inline ~poly_storage() noexcept
 				{
-					if (_popualted)
+					if (_populated)
 					{
 						for (size_t i = 0; i < _occupied; i++)
 						{
@@ -171,15 +171,15 @@ namespace kawa
 						delete[] _connector;
 						delete[] _r_connector;
 
-						_popualted = false;
+						_populated = false;
 					}
 				}
 
 			public:
 				template<typename T>
-				inline void popualte(size_t capacity) noexcept
+				inline void populate(size_t capacity) noexcept
 				{
-					if (!_popualted)
+					if (!_populated)
 					{
 						_capacity = capacity;
 
@@ -246,7 +246,7 @@ namespace kawa
 							};
 
 
-						_popualted = true;
+						_populated = true;
 					}
 				}
 			public:
@@ -400,7 +400,7 @@ namespace kawa
 				move_fn_t		_move_fn = nullptr;
 				size_t			_capacity = 0;
 
-				bool			_popualted = false;
+				bool			_populated = false;
 
 			};
 
@@ -598,7 +598,7 @@ namespace kawa
 
 				if (!storage_cell)
 				{
-					storage.popualte<T>(_real_capacity);
+					storage.populate<T>(_real_capacity);
 					storage_cell = true;
 				}
 
