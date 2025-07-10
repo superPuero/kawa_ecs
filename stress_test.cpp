@@ -3,8 +3,6 @@
 #include "registry.h"
 
 #include <atomic>
-#include <new>
-#include <cstdlib>
 
 using namespace kawa::ecs;
 
@@ -17,7 +15,7 @@ struct Tag { std::string label; };
 struct Transform { Transform(const float* src) { std::copy(src, src + 16, matrix); } float matrix[16]; };
 struct AI { int state; };
 
-constexpr size_t ENTITY_COUNT = 1'000'000;
+constexpr size_t ENTITY_COUNT = 30'000'000;
 
 template <typename Fn>
 double benchmark(const std::string& name, Fn&& fn)
@@ -34,7 +32,6 @@ double benchmark(const std::string& name, Fn&& fn)
 int main()
 {
     registry reg(ENTITY_COUNT);
-
     std::vector<entity_id> entities;
     entities.reserve(ENTITY_COUNT);
 
@@ -63,6 +60,7 @@ int main()
             }
         }
     );
+
 
     benchmark
     (
@@ -109,9 +107,12 @@ int main()
         {
             for (size_t i = 0; i < ENTITY_COUNT; i += 2)
             {
-                entity_id src = entities[i];
-                entity_id dst = entities[i + 1];
-                reg.copy<Vec3, Health>(src, dst);
+                if (i + 1 < ENTITY_COUNT)
+                {
+                    entity_id src = entities[i];
+                    entity_id dst = entities[i + 1];
+                    reg.copy<Vec3, Health>(src, dst);  
+                }
             }
         }
     );
@@ -144,7 +145,24 @@ int main()
                     if (score) pos.y += score->value;
                 }
             );
-        });
+        }
+    );
+
+    benchmark
+    (
+        "Parallel Vec3 + Velocity + optional Score",
+        [&]()
+        {
+            reg.query_par
+            (
+                [](Vec3& pos, Velocity& vel, Score* score)
+                {
+                    pos.x += vel.x;
+                    if (score) pos.y += score->value;
+                }
+            );
+        }
+    );
 
     benchmark
     (
@@ -153,6 +171,24 @@ int main()
         {
             float dt = 0.016f;
             reg.query
+            (
+                [](float dt, Vec3& pos, Velocity& vel)
+                {
+                    pos.x += vel.x * dt;
+                    pos.y += vel.y * dt;
+                    pos.z += vel.z * dt;
+                }
+                , dt
+            );
+        }
+    );
+    benchmark
+    (
+        "Parallel Fallthrough: delta + Vec3 + Velocity",
+        [&]()
+        {
+            float dt = 0.016f;
+            reg.query_par
             (
                 [](float dt, Vec3& pos, Velocity& vel)
                 {
@@ -184,6 +220,23 @@ int main()
 
     benchmark
     (
+        "Parallel Fallthrough + optional AI",
+        [&]()
+        {
+            int tick = 42;
+            reg.query_par
+            (
+                [](int tick, AI* ai)
+                {
+                    if (ai) ai->state += tick;
+                }
+                , tick
+            );
+        }
+    );
+
+    benchmark
+    (
         "Optional Health Only",
         [&]()
         {
@@ -196,7 +249,25 @@ int main()
                 }
             );
             std::cout << "Entities with Health: " << count << "\n";
-        });
+        }
+    );
+
+    benchmark
+    (
+        "Parallel Optional Health Only (Atomic Counter)",
+        [&]()
+        {
+            std::atomic<size_t> count = 0;
+            reg.query_par
+            (
+                [&](Health* hp)
+                {
+                    if (hp) count++;
+                }
+            );
+            std::cout << "Entities with Health: " << count << "\n";
+        }
+    );
 
     benchmark
     (
@@ -205,6 +276,23 @@ int main()
         {
             float mult = 1.5f;
             reg.query
+            (
+                [](float mult, Score& s, Tag* tag)
+                {
+                    s.value *= mult;
+                }
+                , mult
+            );
+        }
+    );
+
+    benchmark
+    (
+        "Parallel Fallthrough + Score + optional Tag",
+        [&]()
+        {
+            float mult = 1.5f;
+            reg.query_par
             (
                 [](float mult, Score& s, Tag* tag)
                 {
@@ -236,6 +324,25 @@ int main()
 
     benchmark
     (
+        "Parallel Multiple Fallthroughs + Velocity",
+        [&]()
+        {
+            float scale = 2.0f;
+            float offset = 0.5f;
+            reg.query_par
+            (
+                [](float scale, float offset, Velocity& vel)
+                {
+                    vel.x = vel.x * scale + offset;
+                }
+                , scale
+                , offset
+            );
+        }
+    );
+
+    benchmark
+    (
         "Purely Optional Query",
         [&]()
         {
@@ -245,6 +352,23 @@ int main()
                 [&](Vec3* p, Velocity* v, Health* h, Tag* t)
                 {
                     if (p && h) ++count;
+                }
+            );
+            std::cout << "Mixed presence count: " << count << '\n';
+        }
+    );
+
+    benchmark
+    (
+        "Parallel Purely Optional Query (Atomic Counter)",
+        [&]()
+        {
+            std::atomic<size_t> count = 0;
+            reg.query
+            (
+                [&](Vec3* p, Velocity* v, Health* h, Tag* t)
+                {
+                    if (p && h) count.fetch_add(1);
                 }
             );
             std::cout << "Mixed presence count: " << count << '\n';
@@ -316,10 +440,10 @@ int main()
     (
         "Fallthrough (ref) + Vec3 + Health", [&]()
         {
-            int total = 0;
+            size_t total = 0;
             reg.query
             (
-                [](int& sum, Vec3& pos, Health* hp)
+                [](size_t& sum, Vec3& pos, Health* hp)
                 {
                     if (hp) sum += hp->hp;
                 }
@@ -341,4 +465,3 @@ int main()
 
     return 0;
 }
-
