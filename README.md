@@ -154,7 +154,7 @@ reg.query([](Position& pos, Label* opt, Velocity& vel)); // ❌ optional must co
 ### 🧵 Parallel Queries
 > **query_par** and **query_self_par** execute the query in *parallel*.
 
-> By default, they use half of hardware concurrency threads.
+> By default, they use half of hardware threads.
 
 > You can configure thread count by defining the macro `KAWA_ECS_PARALLELISM` before including registry.h.
 
