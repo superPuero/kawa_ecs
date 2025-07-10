@@ -3,8 +3,6 @@
 ![language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)  
 ![status](https://img.shields.io/badge/stability-stable-brightgreen)
 
-*A tiny, lightning‑fast C++20 Entity‑Component System*
-
 ---
 
 > **kawa::ecs** is a header-only ECS focusing on **raw speed, near-zero dynamic allocations**, and a  
