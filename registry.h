@@ -7,8 +7,11 @@
 #include <thread>
 #include <functional>
 #include <barrier>
+#include <utility>
+#include <cstdint>
+#include <cstddef>
 
-#ifdef _DEBUG
+#ifdef _DEBUG																			
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -31,6 +34,7 @@
 
 
 #else
+
 #define KW_ECS_ASSERT(expr) ((void)0)
 #define KW_ECS_ASSERT_MSG(expr, msg) ((void)0)
 
@@ -55,19 +59,19 @@ namespace kawa
 		template<typename Tuple>
 		constexpr size_t get_ptr_type_count_tuple()
 		{
-			return[]<std::size_t... I>(std::index_sequence<I...>)
+			return[]<size_t... I>(std::index_sequence<I...>)
 			{
 				return get_ptr_type_count<std::tuple_element_t<I, Tuple>...>();
 			}(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
 		}
 
-		template<std::size_t Start, std::size_t End>
+		template<size_t Start, size_t End>
 		struct sub_tuple
 		{
 			static_assert(Start <= End, "Start index must be <= End");
 
 			template<typename Tuple>
-			using of = decltype([]<std::size_t... I>(std::index_sequence<I...>)
+			using of = decltype([]<size_t... I>(std::index_sequence<I...>)
 			{
 				return std::tuple<std::tuple_element_t<Start + I, Tuple>...>{};
 			}(std::make_index_sequence<End - Start>{}));
@@ -133,7 +137,7 @@ namespace kawa
 			using require_args_tuple = meta::sub_tuple<0, std::tuple_size_v<no_params_args_tuple> -opt_args_count>::template of<no_params_args_tuple>;
 			static constexpr size_t require_args_count = std::tuple_size_v<require_args_tuple>;
 
-			using opt_args_tuple = meta::sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
+			using opt_args_tuple = meta::sub_tuple<std::tuple_size_v<no_params_args_tuple> - opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
 		};
 	};
 
@@ -151,7 +155,6 @@ namespace kawa
 				using erase_fn_t	= void(*)(void*, size_t);
 				using copy_fn_t		= void(*)(void*, size_t, size_t);
 				using move_fn_t		= void(*)(void*, size_t, size_t);
-
 				
 			public:
 				inline poly_storage() noexcept = default;
@@ -227,7 +230,7 @@ namespace kawa
 							{
 								if constexpr (std::is_trivially_move_constructible_v<T>)
 								{
-									memmove
+									memcpy
 									(
 										static_cast<T*>(data) + to,
 										static_cast<T*>(data) + from,
@@ -411,33 +414,36 @@ namespace kawa
 					, _thread_count(thread_count)
 					, _tasks_count(thread_count + 1)
 				{
-					_starts = new size_t[_thread_count]();
-					_ends = new size_t[_thread_count]();
+					_starts = new size_t[_tasks_count]();
+					_ends	= new size_t[_tasks_count]();
 
-					_threads = (std::thread*)::operator new(sizeof(std::thread) * _thread_count, std::align_val_t{ alignof(std::thread) });
-
-					for (size_t i = 0; i < _thread_count; i++)
+					if (_thread_count)
 					{
-						new (_threads + i) std::thread
-						(
-							[this, i]()
-							{
-								while (true)
-								{
-									_barrier.arrive_and_wait();
+						_threads = (std::thread*)::operator new(sizeof(std::thread) * _thread_count, std::align_val_t{ alignof(std::thread) });
 
-									if (_should_join)
+						for (size_t i = 0; i < _thread_count; i++)
+						{
+							new (_threads + i) std::thread
+							(
+								[this, i]()
+								{
+									while (true)
 									{
 										_barrier.arrive_and_wait();
-										return;
+
+										if (_should_join)
+										{
+											_barrier.arrive_and_wait();
+											return;
+										}
+
+										_query(_starts[i], _ends[i]);
+
+										_barrier.arrive_and_wait();
 									}
-
-									_query(_starts[i], _ends[i]);
-
-									_barrier.arrive_and_wait();
 								}
-							}
-						);
+							);
+						}
 					}
 				}
 				~query_par_engine()
@@ -448,13 +454,15 @@ namespace kawa
 
 					_barrier.arrive_and_wait();
 
-
 					for (size_t i = 0; i < _thread_count; i++)
 					{
 						_threads[i].join();
 					}
 
-					::operator delete(_threads, std::align_val_t{ alignof(std::thread) });
+					if (_thread_count)
+					{
+						::operator delete(_threads, std::align_val_t{ alignof(std::thread) });
+					}
 
 					delete[] _ends;
 					delete[] _starts;

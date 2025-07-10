@@ -11,10 +11,10 @@ struct Health { int hp; };
 struct Score { float value; };
 struct Flags { uint32_t mask; };
 struct Tag { std::string label; };
-struct Transform { Transform(const float* src) { std::copy(src, src + 16, matrix); } float matrix[16]; };
+struct Transform { Transform(const float* src) { std::copy(src, src + 16, matrix); } float matrix[255]; };
 struct AI { int state; };
 
-constexpr size_t ENTITY_COUNT = 30'000'000;
+constexpr size_t ENTITY_COUNT = 1'500;
 
 template <typename Fn>
 double benchmark(const std::string& name, Fn&& fn)
@@ -43,8 +43,6 @@ int main()
                 entities.push_back(reg.entity());
         }
     );
-
-
 
     benchmark
     (
@@ -93,7 +91,7 @@ int main()
         {
             for (size_t i = 0; i < ENTITY_COUNT; i += 4)
             {
-                float mat[16] = {};
+                float mat[255] = {};
                 reg.emplace<Transform>(entities[i], mat);
             }
         }
@@ -110,7 +108,7 @@ int main()
                 {
                     entity_id src = entities[i];
                     entity_id dst = entities[i + 1];
-                    reg.copy<Vec3, Health>(src, dst);  
+                    reg.copy<Vec3, Health>(src, dst);
                 }
             }
         }
@@ -463,5 +461,5 @@ int main()
 
     std::cin.get();
 
-    return 0;
+
 }

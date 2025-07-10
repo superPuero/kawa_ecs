@@ -104,9 +104,9 @@ int main(int argc, char** argv)
     //   [fall-through -> required -> optional]
     // 
     // The argument groups must appear in this strict order:
-    //  1. Fall-through arguments (can be any value, may be reference or pointer)
-    //  2. Required components (T& or T ...) (references in case of T&, copies in case of T)
-    //  3. Optional components (T* ...) (populated with pointer component if exsists, nullptr is does not)
+    //  1. Fall-through group (can be any value, may be reference or pointer)
+    //  2. Required group (T& or T ...) (references in case of T&, copies in case of T)
+    //  3. Optional group (T* ...) (populated with pointer component if exsists, nullptr is does not)
     //
     // !!! You may NOT reorder or mix between groups.
     // !!! Each group can be any size (including empty).
@@ -200,8 +200,8 @@ int main(int argc, char** argv)
     // query_par behaves like `query`, but executes the loop body in multi-threaded context.
     // It's ideal for parallel updates, physics steps, AI, or any independent per-entity work.
     //
-	// Default ammout of threads allocated for is half of the hardware threads.
-	// Currently you can change this by setting `KAWA_ECS_PARALLELISM` macro before including the header.
+    // Default ammout of threads allocated for is half of the hardware threads.
+    // Currently you can change this by setting `KAWA_ECS_PARALLELISM` macro before including the header.
     // 
     // Signature and semantics identical to `query`
 
