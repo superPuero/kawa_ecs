@@ -29,7 +29,7 @@ No third-party dependencies, no linkage headaches.
 | **Ultra-fast**                 | Designed for maximum performance while remaining simple       | Cache-friendly storage, mindful optimizations        |
 | **Header-only**                | Single header `registry.h`                                    | No libs, no build dependencies                        |
 | **Type-safe**                  | `reg.emplace<Position>(e, …)`                                | Compile-time component IDs                            |
-| **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                              | Intuitive, flexible matching                          |
+| **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                              | Intuitive, flexible entity matching / system building |
 | **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                          | Flexible and safe multithreading                       |
 | **Debug asserts**              | `KW_ECS_ASSERT_MSG`                                          | Catch misuse early                                    |
 
