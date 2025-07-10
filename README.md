@@ -1,7 +1,6 @@
 # 🌊 **kawa::ecs**
 
 ![language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)  
-![status](https://img.shields.io/badge/stability-stable-brightgreen)
 
 ---
 
