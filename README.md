@@ -61,14 +61,25 @@ int main()
     reg.emplace<Name>(e, "Bar");
 
     // Simple query
-    reg.query([](Position& p, Name* n) {
-        std::cout << n ? n->name : "unnamed" << " is at " << p.x << " " << p.y << '\n';
-    });
+    reg.query
+    (
+        [](Position& p, Name* n)
+        {
+            std::cout << (n ? n->name : "unnamed") << " is at " << p.x << " " << p.y << '\n';
+        }
+    );
 
+    float delta_time = 0.16;
     // Parallel query (multi-threaded)
-    reg.query_par([](Position& p, Velocity& v) {
-        p.x += v.x; p.y += v.y;
-    });
+    reg.query_par
+    (
+        [](float dt, Position& p, Velocity& v)
+        {
+            p.x += v.x * dt;
+            p.y += v.y * dt;
+        }
+        , delta_time
+    );
 
     return 0;
 }
