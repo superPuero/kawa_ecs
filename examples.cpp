@@ -1,5 +1,7 @@
 // ===== kawa::ecs Example Usage & Documentation =====
 
+#define KAWA_ECS_PARALLELISM 16 // Set the number of threads for parallel queries (optional, default is half of hardware threads)
+
 #include "registry.h"
 #include <iostream>
 #include <string>
@@ -230,6 +232,8 @@ int main(int argc, char** argv)
 
     // === 7. Destroying an Entity ===
     reg.destroy(e3);
+
+    std::cout << KAWA_ECS_PARALLELISM << '\n';
 
     std::cin.get();
 

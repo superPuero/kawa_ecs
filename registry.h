@@ -8,12 +8,12 @@
 #include <functional>
 #include <barrier>
 
-#if defined(_DEBUG)
+#ifdef _DEBUG
 
-#if defined(_MSC_VER)
+#ifdef _MSC_VER
 #include <intrin.h>
 #define KW_ECS_DEBUG_BREAK() __debugbreak()
-#elif defined(__GNUC__) || defined(__clang__)
+#elif __GNUC__ || __clang__
 #define KW_ECS_DEBUG_BREAK() __builtin_trap()
 #else
 #define KW_ECS_DEBUG_BREAK() ((void)0)
@@ -37,13 +37,13 @@
 #endif
 
 #define KW_MAX_UNIQUE_STORAGE_COUNT 255
-#define KAWA_ECS_PARALLELISM (std::thread::hardware_concurrency() / 2)
+
+#ifndef KAWA_ECS_PARALLELISM
+	#define KAWA_ECS_PARALLELISM (std::thread::hardware_concurrency() / 2)
+#endif
 
 namespace kawa
 {
-	
-	
-
 	namespace meta
 	{
 		template<typename...Types>
@@ -424,6 +424,7 @@ namespace kawa
 							{
 								while (true)
 								{
+									// Waiting for main thread to arrive
 									_barrier.arrive_and_wait();
 
 									if (_should_join)
@@ -445,6 +446,8 @@ namespace kawa
 					_should_join = true;
 
 					_barrier.arrive_and_wait();
+
+					// Threads are returning here
 
 					_barrier.arrive_and_wait();
 
@@ -483,23 +486,27 @@ namespace kawa
 
 					_barrier.arrive_and_wait();
 
+					// Treads execute here;
+
 					_barrier.arrive_and_wait();
 				}
 
 			private:
-				std::thread* _threads = nullptr;
+				std::thread*							_threads		= nullptr;
 				const size_t							_thread_count	= 0;
 				bool									_should_join	= false;
+
+				size_t*									_starts			= nullptr;
+				size_t*									_ends			= nullptr;
+
 				std::function<void(size_t, size_t)>		_query			= nullptr;
 				std::barrier<>							_barrier;
-				size_t*									_starts;
-				size_t*									_ends;
+
 			};
 		}
 
 		class registry
 		{
-
 			template<typename T>
 			static inline storage_id get_storage_id() noexcept
 			{
