@@ -781,9 +781,9 @@ namespace kawa
 			template<typename Fn, typename...Params>
 			inline void query(Fn&& fn, Params&&...params) noexcept
 			{
-				using qt = typename meta::query_traits<Fn, Params...>;
+				using query_traits = typename meta::query_traits<Fn, Params...>;
 
-				if constexpr (qt::args_count == qt::params_count)
+				if constexpr (query_traits::args_count == query_traits::params_count)
 				{
 					for (size_t i = 0; i < _entries_counter; i++)
 					{
@@ -792,11 +792,11 @@ namespace kawa
 				}
 				else
 				{
-					_query_impl<Fn, typename qt::require_args_tuple, typename qt::opt_args_tuple>
+					_query_impl<Fn, typename query_traits::require_args_tuple, typename query_traits::opt_args_tuple>
 						(
 							std::forward<Fn>(fn),
-							std::make_index_sequence<qt::require_args_count>{},
-							std::make_index_sequence<qt::opt_args_count>{},
+							std::make_index_sequence<query_traits::require_args_count>{},
+							std::make_index_sequence<query_traits::opt_args_count>{},
 							std::forward<Params>(params)...
 						);
 				}
@@ -805,9 +805,9 @@ namespace kawa
 			template<typename Fn, typename...Params>
 			inline void query_par(Fn&& fn, Params&&...params) noexcept
 			{
-				using qt = typename meta::query_traits<Fn, Params...>;
+				using query_traits = typename meta::query_traits<Fn, Params...>;
 
-				if constexpr (qt::args_count == qt::params_count)
+				if constexpr (query_traits::args_count == query_traits::params_count)
 				{
 					_query_par_engine.query
 					(
@@ -823,11 +823,11 @@ namespace kawa
 				}
 				else
 				{
-					_query_par_impl<Fn, typename qt::require_args_tuple, typename qt::opt_args_tuple>
+					_query_par_impl<Fn, typename query_traits::require_args_tuple, typename query_traits::opt_args_tuple>
 						(
 							std::forward<Fn>(fn),
-							std::make_index_sequence<qt::require_args_count>{},
-							std::make_index_sequence<qt::opt_args_count>{},
+							std::make_index_sequence<query_traits::require_args_count>{},
+							std::make_index_sequence<query_traits::opt_args_count>{},
 							std::forward<Params>(params)...
 						);
 				}
@@ -836,11 +836,11 @@ namespace kawa
 			template<typename Fn, typename...Params>
 			inline void query_self(Fn&& fn, Params&&...params) noexcept
 			{
-				using qst = typename meta::query_self_traits<Fn, Params...>;
+				using query_self_traits = typename meta::query_self_traits<Fn, Params...>;
 
-				static_assert(std::is_same_v<std::tuple_element_t<0, typename qst::args_tuple>, kawa::ecs::entity_id>, "query self fucntion must take kawa::ecs::entity_id as a first parameter");
+				static_assert(std::is_same_v<std::tuple_element_t<0, typename query_self_traits::args_tuple>, kawa::ecs::entity_id>, "query self fucntion must take kawa::ecs::entity_id as a first parameter");
 
-				if constexpr (qst::args_count == qst::params_count)
+				if constexpr (query_self_traits::args_count == query_self_traits::params_count)
 				{
 					for (size_t i = 0; i < _entries_counter; i++)
 					{
@@ -849,11 +849,11 @@ namespace kawa
 				}
 				else
 				{
-					_query_self_impl<Fn, typename qst::require_args_tuple, typename qst::opt_args_tuple>
+					_query_self_impl<Fn, typename query_self_traits::require_args_tuple, typename query_self_traits::opt_args_tuple>
 						(
 							std::forward<Fn>(fn),
-							std::make_index_sequence<qst::require_args_count>{},
-							std::make_index_sequence<qst::opt_args_count>{},
+							std::make_index_sequence<query_self_traits::require_args_count>{},
+							std::make_index_sequence<query_self_traits::opt_args_count>{},
 							std::forward<Params>(params)...
 						);
 				}
@@ -862,11 +862,11 @@ namespace kawa
 			template<typename Fn, typename...Params>
 			inline void query_self_par(Fn&& fn, Params&&...params) noexcept
 			{
-				using qst = typename meta::query_self_traits<Fn, Params...>;
+				using query_self_traits = typename meta::query_self_traits<Fn, Params...>;
 
-				static_assert(std::is_same_v<std::tuple_element_t<0, typename qst::args_tuple>, kawa::ecs::entity_id>, "query self fucntion must take kawa::ecs::entity_id as a first parameter");
+				static_assert(std::is_same_v<std::tuple_element_t<0, typename query_self_traits::args_tuple>, kawa::ecs::entity_id>, "query self fucntion must take kawa::ecs::entity_id as a first parameter");
 
-				if constexpr (qst::args_count == qst::params_count)
+				if constexpr (query_self_traits::args_count == query_self_traits::params_count)
 				{
 					_query_par_engine.query
 					(
@@ -883,11 +883,11 @@ namespace kawa
 				}
 				else
 				{
-					_query_self_par_impl<Fn, typename  qst::require_args_tuple, typename  qst::opt_args_tuple>
+					_query_self_par_impl<Fn, typename  query_self_traits::require_args_tuple, typename  query_self_traits::opt_args_tuple>
 						(
 							std::forward<Fn>(fn),
-							std::make_index_sequence<qst::require_args_count>{},
-							std::make_index_sequence<qst::opt_args_count>{},
+							std::make_index_sequence<query_self_traits::require_args_count>{},
+							std::make_index_sequence<query_self_traits::opt_args_count>{},
 							std::forward<Params>(params)...
 						);
 				}
@@ -898,22 +898,22 @@ namespace kawa
 			{
 				KW_ECS_ASSERT(_validate_entity(entity));
 
-				using qt = typename meta::query_traits<Fn, Params...>;
+				using query_traits = typename meta::query_traits<Fn, Params...>;
 
 				if (_entity_mask[entity])
 				{
-					if constexpr (qt::args_count == qt::params_count)
+					if constexpr (query_traits::args_count == query_traits::params_count)
 					{
 						fn(std::forward<Params>(params)...);
 					}
 					else
 					{
-						_query_with_impl<Fn, typename qt::require_args_tuple, typename qt::opt_args_tuple>
+						_query_with_impl<Fn, typename query_traits::require_args_tuple, typename query_traits::opt_args_tuple>
 							(
 								entity,
 								std::forward<Fn>(fn),
-								std::make_index_sequence<qt::require_args_count>{},
-								std::make_index_sequence<qt::opt_args_count>{},
+								std::make_index_sequence<query_traits::require_args_count>{},
+								std::make_index_sequence<query_traits::opt_args_count>{},
 								std::forward<Params>(params)...
 							);
 					}
