@@ -52,8 +52,8 @@ int main()
     registry reg(512);
 
     entity_id e1 = reg.entity();
-    reg.emplace<Position>(e, 0.f, 0.f);
-    reg.emplace<Velocity>(e, 1.f, 2.f);
+    reg.emplace<Position>(e1, 0.f, 0.f);
+    reg.emplace<Velocity>(e1, 1.f, 2.f);
 
     entity_id e2 = reg.entity_with
     (
