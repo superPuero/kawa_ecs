@@ -211,7 +211,6 @@ namespace kawa
 										static_cast<T*>(data) + from, 
 										sizeof(T)
 									);
-									//new (static_cast<T*>(data) + to) T(*(static_cast<T*>(data) + from));
 
 								}
 								else if constexpr (std::is_copy_constructible_v<T>) 
@@ -410,6 +409,7 @@ namespace kawa
 				query_par_engine(size_t thread_count)
 					: _barrier(thread_count + 1)
 					, _thread_count(thread_count)
+					, _tasks_count(thread_count + 1)
 				{
 					_starts = new size_t[_thread_count]();
 					_ends = new size_t[_thread_count]();
@@ -424,7 +424,6 @@ namespace kawa
 							{
 								while (true)
 								{
-									// Waiting for main thread to arrive
 									_barrier.arrive_and_wait();
 
 									if (_should_join)
@@ -447,8 +446,6 @@ namespace kawa
 
 					_barrier.arrive_and_wait();
 
-					// Threads are returning here
-
 					_barrier.arrive_and_wait();
 
 
@@ -469,14 +466,14 @@ namespace kawa
 				{
 					_query = std::forward<Fn>(query);
 
-					size_t chunk_work = work / _thread_count;
+					size_t chunk_work = work / _tasks_count;
 
-					size_t tail_chunk_work = work - chunk_work * _thread_count;
+					size_t tail_chunk_work = work - chunk_work * _tasks_count;
 
-					for (size_t i = 0; i < _thread_count; ++i)
+					for (size_t i = 0; i < _tasks_count; ++i)
 					{
 						size_t start = i * chunk_work;
-						size_t end = (i == (_thread_count - 1)) ? start + chunk_work + tail_chunk_work : start + chunk_work;
+						size_t end = (i == (_tasks_count - 1)) ? start + chunk_work + tail_chunk_work : start + chunk_work;
 
 						if (start >= end) continue;
 
@@ -486,7 +483,7 @@ namespace kawa
 
 					_barrier.arrive_and_wait();
 
-					// Treads execute here;
+					_query(_starts[_tasks_count - 1], _ends[_tasks_count - 1]);
 
 					_barrier.arrive_and_wait();
 				}
@@ -494,6 +491,7 @@ namespace kawa
 			private:
 				std::thread*							_threads		= nullptr;
 				const size_t							_thread_count	= 0;
+				const size_t							_tasks_count	= 0;
 				bool									_should_join	= false;
 
 				size_t*									_starts			= nullptr;

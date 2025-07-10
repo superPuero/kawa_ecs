@@ -1,6 +1,7 @@
 // ===== kawa::ecs Example Usage & Documentation =====
 
-#define KAWA_ECS_PARALLELISM 16 // Set the number of threads for parallel queries (optional, default is half of hardware threads)
+#define KAWA_ECS_PARALLELISM 8 // Set the number of threads for parallel queries (optional, default is half of hardware threads)
+//#define KAWA_ECS_PARALLELISM 0 // Srtting this to 0 will turn on paralellizm, invocation of every "par" query will be executed exclusively on a main thread
 
 #include "registry.h"
 #include <iostream>
