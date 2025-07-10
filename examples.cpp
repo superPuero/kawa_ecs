@@ -231,5 +231,7 @@ int main(int argc, char** argv)
     // === 7. Destroying an Entity ===
     reg.destroy(e3);
 
+    std::cin.get();
+
     return 0;
 }

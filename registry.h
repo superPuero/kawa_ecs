@@ -79,14 +79,14 @@ namespace kawa
 		template<typename RetTy, typename...ArgTy>
 		struct function_traits<RetTy(*)(ArgTy...)>
 		{
-			using return_type = typename RetTy;
+			using return_type = RetTy;
 			using args_tuple = typename std::tuple<std::remove_const_t<std::remove_reference_t<ArgTy>>...>;
 		};
 
 		template<typename RetTy, typename...ArgTy>
 		struct function_traits<RetTy(&)(ArgTy...)>
 		{
-			using return_type = typename RetTy;
+			using return_type = RetTy;
 			using args_tuple = typename std::tuple< std::remove_const_t<std::remove_reference_t<ArgTy>>...>;
 		};
 
@@ -96,7 +96,7 @@ namespace kawa
 		template<typename RetTy, typename ObjTy, typename...ArgTy>
 		struct function_traits<RetTy(ObjTy::*)(ArgTy...) const>
 		{
-			using return_type = typename RetTy;
+			using return_type = RetTy;
 			using args_tuple = typename std::tuple< std::remove_const_t<std::remove_reference_t<ArgTy>>...>;
 		};
 		
@@ -205,7 +205,7 @@ namespace kawa
 							{
 								if constexpr (std::is_trivially_copyable_v<T>)
 								{
-									std::memcpy
+									memcpy
 									(
 										static_cast<T*>(data) + to, 
 										static_cast<T*>(data) + from, 
@@ -228,7 +228,7 @@ namespace kawa
 							{
 								if constexpr (std::is_trivially_move_constructible_v<T>)
 								{
-									std::memmove
+									memmove
 									(
 										static_cast<T*>(data) + to,
 										static_cast<T*>(data) + from,
@@ -779,7 +779,7 @@ namespace kawa
 				}
 				else
 				{
-					_query_impl<Fn, qt::template require_args_tuple, qt::template opt_args_tuple>
+					_query_impl<Fn, typename qt::require_args_tuple, typename qt::opt_args_tuple>
 						(
 							std::forward<Fn>(fn),
 							std::make_index_sequence<qt::require_args_count>{},
@@ -810,7 +810,7 @@ namespace kawa
 				}
 				else
 				{
-					_query_par_impl<Fn, qt::template require_args_tuple, qt::template opt_args_tuple>
+					_query_par_impl<Fn, typename qt::require_args_tuple, typename qt::opt_args_tuple>
 						(
 							std::forward<Fn>(fn),
 							std::make_index_sequence<qt::require_args_count>{},
@@ -825,7 +825,7 @@ namespace kawa
 			{
 				using qst = typename meta::query_self_traits<Fn, Params...>;
 
-				static_assert(std::is_same_v<std::tuple_element_t<0, qst::template args_tuple>, kawa::ecs::entity_id>, "query self fucntion must take kawa::ecs::entity_id as a first parameter");
+				static_assert(std::is_same_v<std::tuple_element_t<0, typename qst::args_tuple>, kawa::ecs::entity_id>, "query self fucntion must take kawa::ecs::entity_id as a first parameter");
 
 				if constexpr (qst::args_count == qst::params_count)
 				{
@@ -836,7 +836,7 @@ namespace kawa
 				}
 				else
 				{
-					_query_self_impl<Fn, qst::template require_args_tuple, qst::template opt_args_tuple>
+					_query_self_impl<Fn, typename qst::require_args_tuple, typename qst::opt_args_tuple>
 						(
 							std::forward<Fn>(fn),
 							std::make_index_sequence<qst::require_args_count>{},
@@ -851,7 +851,7 @@ namespace kawa
 			{
 				using qst = typename meta::query_self_traits<Fn, Params...>;
 
-				static_assert(std::is_same_v<std::tuple_element_t<0, qst::template args_tuple>, kawa::ecs::entity_id>, "query self fucntion must take kawa::ecs::entity_id as a first parameter");
+				static_assert(std::is_same_v<std::tuple_element_t<0, typename qst::args_tuple>, kawa::ecs::entity_id>, "query self fucntion must take kawa::ecs::entity_id as a first parameter");
 
 				if constexpr (qst::args_count == qst::params_count)
 				{
@@ -870,7 +870,7 @@ namespace kawa
 				}
 				else
 				{
-					_query_self_par_impl<Fn, qst::template require_args_tuple, qst::template opt_args_tuple>
+					_query_self_par_impl<Fn, typename  qst::require_args_tuple, typename  qst::opt_args_tuple>
 						(
 							std::forward<Fn>(fn),
 							std::make_index_sequence<qst::require_args_count>{},
@@ -895,7 +895,7 @@ namespace kawa
 					}
 					else
 					{
-						_query_with_impl<Fn, qt::template require_args_tuple, qt::template opt_args_tuple>
+						_query_with_impl<Fn, typename qt::require_args_tuple, typename qt::opt_args_tuple>
 							(
 								entity,
 								std::forward<Fn>(fn),
@@ -950,7 +950,7 @@ namespace kawa
 						entity_id e = smallest->_connector[i];
 						if ((req_storages[req_idxs]->has(e) && ...))
 						{
-							fn(std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+							fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
 						}
 					}
 				}
@@ -967,7 +967,7 @@ namespace kawa
 					for (size_t i = 0; i < _entries_counter; i++)
 					{
 						entity_id e = _entity_entries[i];
-						fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+						fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
 					}
 				}
 				else
@@ -1000,7 +1000,7 @@ namespace kawa
 						entity_id e = smallest->_connector[i];
 						if ((req_storages[req_idxs]->has(e) && ...))
 						{
-							fn(std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
+							fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
 						}
 					}
 				}
@@ -1053,7 +1053,7 @@ namespace kawa
 								entity_id e = smallest->_connector[i];
 								if ((req_storages[req_idxs]->has(e) && ...))
 								{
-									fn(std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+									fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
 								}
 							}
 						}
@@ -1077,7 +1077,7 @@ namespace kawa
 							for (size_t i = start; i < end; ++i)
 							{
 								entity_id e = _entity_entries[i];
-								fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+								fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
 							}
 						}
 						, _entries_counter
@@ -1118,7 +1118,7 @@ namespace kawa
 								entity_id e = smallest->_connector[i];
 								if ((req_storages[req_idxs]->has(e) && ...))
 								{
-									fn(std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
+									fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
 								}
 							}
 						}
@@ -1169,7 +1169,7 @@ namespace kawa
 						entity_id e = smallest->_connector[i];
 						if ((req_storages[req_idxs]->has(e) && ...))
 						{
-							fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+							fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
 						}
 					}
 				}
@@ -1186,7 +1186,7 @@ namespace kawa
 					for (size_t i = 0; i < _entries_counter; i++)
 					{
 						entity_id e = _entity_entries[i];
-						fn(e, std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+						fn(e, std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
 					}
 				}
 				else
@@ -1218,7 +1218,7 @@ namespace kawa
 						entity_id e = smallest->_connector[i];
 						if ((req_storages[req_idxs]->has(e) && ...))
 						{
-							fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
+							fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
 						}
 					}
 				}
@@ -1271,7 +1271,7 @@ namespace kawa
 								entity_id e = smallest->_connector[i];
 								if ((req_storages[req_idxs]->has(e) && ...))
 								{
-									fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+									fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
 								}
 							}
 						}
@@ -1295,7 +1295,7 @@ namespace kawa
 							for (size_t i = start; i < end; ++i)
 							{
 								entity_id e = _entity_entries[i];
-								fn(e, std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+								fn(e, std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
 							}
 						}
 						, _entries_counter
@@ -1336,7 +1336,7 @@ namespace kawa
 								entity_id e = smallest->_connector[i];
 								if ((req_storages[req_idxs]->has(e) && ...))
 								{
-									fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
+									fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
 								}
 							}
 						}
@@ -1387,7 +1387,7 @@ namespace kawa
 					{
 						if ((req_storages[req_idxs]->has(entity) && ...))
 						{
-							fn(std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(entity)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(entity) : nullptr)...);
+							fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(entity)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(entity) : nullptr)...);
 						}
 					}
 				}
@@ -1401,7 +1401,7 @@ namespace kawa
 
 					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
 
-					fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(entity) : nullptr)...);
+					fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(entity) : nullptr)...);
 
 				}
 				else
@@ -1432,7 +1432,7 @@ namespace kawa
 					{
 						if ((req_storages[req_idxs]->has(entity) && ...))
 						{
-							fn(std::forward<Params>(params)..., req_storages[req_idxs]->get<std::tuple_element_t<req_idxs, req_tuple>>(entity)...);
+							fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(entity)...);
 						}
 					}
 				}
