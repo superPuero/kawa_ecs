@@ -1,13 +1,10 @@
-# 🌊 **kawa::ecs**
+#  **kawa::ecs**
 
 ![language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)  
-![status](https://img.shields.io/badge/stability-stable-brightgreen)
-
-*A tiny, lightning‑fast C++20 Entity‑Component System*
 
 ---
 
-> **kawa::ecs** is a header-only ECS focusing on **raw speed, near-zero dynamic allocations**, and a  
+> header-only ECS that focuses on **raw speed, near-zero dynamic allocations**, and a  
 > *minimal, modern* API. Drop the header into any C++20 project and get an industrial-strength  
 > data-oriented backbone for games, simulations, or large-scale AI worlds.
 
@@ -31,9 +28,8 @@ No third-party dependencies, no linkage headaches.
 | **Ultra-fast**                 | Designed for maximum performance while remaining simple       | Cache-friendly storage, mindful optimizations        |
 | **Header-only**                | Single header `registry.h`                                    | No libs, no build dependencies                        |
 | **Type-safe**                  | `reg.emplace<Position>(e, …)`                                | Compile-time component IDs                            |
-| **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                              | Intuitive, flexible matching                          |
-| **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                          | Multi-threaded iteration with thread count tuning    |
-| **Clone entities**             | `auto e2 = reg.clone(e1);`                                   | Deep copy of all components from one entity to another |
+| **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                              | Intuitive, flexible entity matching / system building |
+| **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                          | Flexible and safe multithreading                       |
 | **Debug asserts**              | `KW_ECS_ASSERT_MSG`                                          | Catch misuse early                                    |
 
 ---
@@ -158,7 +154,7 @@ reg.query([](Position& pos, Label* opt, Velocity& vel)); // ❌ optional must co
 ### 🧵 Parallel Queries
 > **query_par** and **query_self_par** execute the query in *parallel*.
 
-> By default, they use half of hardware concurrency threads.
+> By default, they use half of hardware threads.
 
 > You can configure thread count by defining the macro `KAWA_ECS_PARALLELISM` before including registry.h.
 
