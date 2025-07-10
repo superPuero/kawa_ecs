@@ -51,10 +51,16 @@ int main()
 {
     registry reg(512);
 
-    entity_id e = reg.entity();
+    entity_id e1 = reg.entity();
     reg.emplace<Position>(e, 0.f, 0.f);
     reg.emplace<Velocity>(e, 1.f, 2.f);
-    reg.emplace<Name>(e, "Bar");
+
+    entity_id e2 = reg.entity_with
+    (
+        Position{ 10, 20 },
+        Velocity{ 1, 1 },
+        Name{ "Bar" } // Move constructor is strongly advised 
+    );
 
     // Simple query
     reg.query
