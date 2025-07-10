@@ -62,7 +62,7 @@ int main()
 
     // Simple query
     reg.query([](Position& p, Name* n) {
-        std::cout << n ? n->name : "unnamed" << " is at " << p.x << " " << p.y << '\n';
+        std::cout << (n ? n->name : "unnamed") << " is at " << p.x << " " << p.y << '\n';
     });
 
     // Parallel query (multi-threaded)
