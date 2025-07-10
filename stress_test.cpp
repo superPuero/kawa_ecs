@@ -1,8 +1,7 @@
 #include <iostream>
 #include <chrono>
-#include "registry.h"
-
 #include <atomic>
+#include "registry.h"
 
 using namespace kawa::ecs;
 
