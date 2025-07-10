@@ -30,8 +30,7 @@ No third-party dependencies, no linkage headaches.
 | **Header-only**                | Single header `registry.h`                                    | No libs, no build dependencies                        |
 | **Type-safe**                  | `reg.emplace<Position>(e, …)`                                | Compile-time component IDs                            |
 | **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                              | Intuitive, flexible matching                          |
-| **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                          | Multi-threaded iteration with thread count tuning    |
-| **Clone entities**             | `auto e2 = reg.clone(e1);`                                   | Deep copy of all components from one entity to another |
+| **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                          | Flexible and safe multithreading                       |
 | **Debug asserts**              | `KW_ECS_ASSERT_MSG`                                          | Catch misuse early                                    |
 
 ---
