@@ -3,7 +3,7 @@
 #define KAWA_ECS_PARALLELISM 8 // Set the number of threads for parallel queries (optional, default is half of hardware threads)
 //#define KAWA_ECS_PARALLELISM 0 // Srtting this to 0 will turn paralellism off, invocation of every "par" query will be executed exclusively on a main thread
 
-#include "registry.h"
+#include "single_header/registry.h"
 #include <iostream>
 #include <string>
 
@@ -24,6 +24,7 @@ struct Velocity
 struct Label
 {
     std::string name;
+    ~Label(){std::cout << "DEST" <<  name<< '\n'; }
 };
 
 // Sample functions used for queries
@@ -44,6 +45,7 @@ int main(int argc, char** argv)
     using namespace kawa::ecs;
 
     // === 1. Constructing the Registry ===
+    {
     registry reg(256);  // Provide max amount of entities upfront
 
     // === 2. Creating Entities ===
@@ -237,6 +239,10 @@ int main(int argc, char** argv)
     std::cout << KAWA_ECS_PARALLELISM << '\n';
 
     std::cin.get();
+
+    }
+
+std::cin.get();
 
     return 0;
 }

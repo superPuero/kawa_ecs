@@ -1,13 +1,9 @@
-#pragma once
+#ifndef KW_ECS_REGISTRY
+#define KW_ECS_REGISTRY
 
-#include <memory>
-#include <iostream>
-#include <tuple>
-#include <type_traits>
-#include <thread>
-#include <functional>
-#include <barrier>
-#include <utility>
+#ifndef KW_CORE
+#define KW_CORE
+
 #include <cstdint>
 #include <cstddef>
 
@@ -15,41 +11,174 @@
 
 #ifdef _MSC_VER
 #include <intrin.h>
-#define KW_ECS_DEBUG_BREAK() __debugbreak()
+#define KW_DEBUG_BREAK() __debugbreak()
 #elif __GNUC__ || __clang__
-#define KW_ECS_DEBUG_BREAK() __builtin_trap()
+#define KW_DEBUG_BREAK() __builtin_trap()
 #else
-#define KW_ECS_DEBUG_BREAK() ((void)0)
+#define KW_DEBUG_BREAK() ((void)0)
 #endif
 
-#define KW_ECS_ASSERT(expr) if(!(expr)) KW_ECS_DEBUG_BREAK();
+#define KW_ASSERT(expr) if(!(expr)) KW_DEBUG_BREAK();
 
-#define KW_ECS_ASSERT_MSG(expr, msg) \
+#define KW_ASSERT_MSG(expr, msg) \
         do { \
             if (!(expr)) { \
                 std::cout << msg << '\n'; \
-                KW_ECS_DEBUG_BREAK(); \
+                KW_DEBUG_BREAK(); \
             } \
         } while(0)
 
 
 #else
 
-#define KW_ECS_ASSERT(expr) ((void)0)
-#define KW_ECS_ASSERT_MSG(expr, msg) ((void)0)
+#define KW_ASSERT(expr) ((void)0)
+#define KW_ASSERT_MSG(expr, msg) ((void)0)
 
 #endif
 
-#define KW_MAX_UNIQUE_STORAGE_COUNT 255
 
-#ifndef KAWA_ECS_PARALLELISM
-	#define KAWA_ECS_PARALLELISM (std::thread::hardware_concurrency() / 2)
+#endif
+#pragma once
+
+#include <string>
+#include <string_view>
+#include <cstdint>
+
+#if defined(__clang__)
+#	define KW_META_PRETTYFUNC __PRETTY_FUNCTION__
+#	define KW_META_TYPE_HAME_PREFIX "kawa::meta::type_name() [T = "
+#	define KW_META_TYPE_HAME_POSTFIX "]"
+#elif defined(_MSC_VER)
+#	define KW_META_PRETTYFUNC __FUNCSIG__	
+#	define KW_META_TYPE_HAME_PREFIX "kawa::meta::type_name<"
+#	define KW_META_TYPE_HAME_POSTFIX ">(void) noexcept"
+#elif defined(__GNUC__) 
+#	define KW_META_PRETTYFUNC __PRETTY_FUNCTION__
+#	define KW_META_TYPE_HAME_PREFIX "kawa::meta::type_name() [with T = "
+#	define KW_META_TYPE_HAME_POSTFIX "; std::string_view = std::basic_string_view<char>]"
+#else
+#	error "Function signature macro not defined for this compiler."
 #endif
 
 namespace kawa
 {
 	namespace meta
 	{
+		namespace _internal
+		{
+
+			template<typename T>
+			extern const T fake_object;
+
+			inline constexpr std::string_view type_name_helper(std::string_view decorated_name)
+			{
+				size_t start = decorated_name.find(KW_META_TYPE_HAME_PREFIX);
+				size_t end = decorated_name.find(KW_META_TYPE_HAME_POSTFIX);
+
+				return decorated_name.substr(start + sizeof(KW_META_TYPE_HAME_PREFIX) - 1, end - (start + sizeof(KW_META_TYPE_HAME_PREFIX) - 1));
+			}
+
+			constexpr uint64_t fnv1a_hash(std::string_view str) noexcept
+			{
+				constexpr uint64_t fnv_offset_basis = 14695981039346656037ull;
+				constexpr uint64_t fnv_prime = 1099511628211ull;
+
+				uint64_t hash = fnv_offset_basis;
+
+				for (char c : str)
+				{
+					hash ^= static_cast<uint64_t>(c);
+					hash *= fnv_prime;
+				}
+
+				return hash;
+			}
+		}
+
+		template<typename T>
+		inline constexpr std::string_view type_name() noexcept
+		{
+			return _internal::type_name_helper(KW_META_PRETTYFUNC);
+		}
+
+		constexpr uint64_t string_hash(std::string_view str) noexcept
+		{
+			return _internal::fnv1a_hash(str);
+		}
+
+		template<typename T>
+		inline constexpr uint64_t type_hash() noexcept
+		{
+			return string_hash(type_name<T>());
+		}
+
+		struct type_info
+		{
+			constexpr type_info(std::string_view n, uint64_t h) noexcept
+				: name(n), hash(h) {}
+
+			template<typename T>
+			static constexpr type_info create() noexcept
+			{
+				return type_info(type_name<T>(), type_hash<T>());
+			}
+
+			std::string_view name;
+			uint64_t hash;
+		};
+
+		template<typename RetTy, typename...ArgTy>
+		struct function_traits {};
+
+		template<typename RetTy, typename...ArgTy>
+		struct function_traits<RetTy(*)(ArgTy...)>
+		{
+			using return_type = RetTy;
+			using args_tuple = typename std::tuple<ArgTy...>;
+			template<size_t i>
+			using arg_at = typename std::tuple_element_t<i, args_tuple>;
+		};
+
+		template<typename RetTy, typename...ArgTy>
+		struct function_traits<RetTy(&)(ArgTy...)>
+		{
+			using return_type = RetTy;
+			using args_tuple = typename std::tuple<ArgTy...>;
+			template<size_t i>
+			using arg_at = typename std::tuple_element_t<i, args_tuple>;
+		};
+
+		template<typename RetTy, typename...ArgTy>
+		struct function_traits<RetTy(ArgTy...)>
+		{
+			using return_type = RetTy;
+			using args_tuple = typename std::tuple<ArgTy...>;
+			template<size_t i>
+			using arg_at = typename std::tuple_element_t<i, args_tuple>;
+		};
+
+		template<typename T>
+		struct function_traits<T> : function_traits<decltype(&T::operator())> {};
+
+		template<typename RetTy, typename ObjTy, typename...ArgTy>
+		struct function_traits<RetTy(ObjTy::*)(ArgTy...) const>
+		{
+			using return_type = RetTy;
+			using args_tuple = typename std::tuple<ArgTy...>;
+			template<size_t i>
+			using arg_at = typename std::tuple_element_t<i, args_tuple>;
+		};
+
+	}
+}
+#ifndef KW_META_ECS_EXT
+#define	KW_META_ECS_EXT
+
+namespace kawa
+{
+	namespace meta
+	{
+
 		template<typename...Types>
 		constexpr size_t get_ptr_type_count()
 		{
@@ -77,39 +206,30 @@ namespace kawa
 			}(std::make_index_sequence<End - Start>{}));
 		};
 
-		template<typename RetTy, typename...ArgTy>
-		struct function_traits {};
-		
-		template<typename RetTy, typename...ArgTy>
-		struct function_traits<RetTy(*)(ArgTy...)>
+		template <typename Tuple, template <typename> class Transform>
+		constexpr auto transform_tuple_impl()
 		{
-			using return_type = RetTy;
-			using args_tuple = typename std::tuple<std::remove_const_t<std::remove_reference_t<ArgTy>>...>;
+			return[]<size_t... I>(std::index_sequence<I...>)
+			{
+				return std::make_tuple(Transform<std::tuple_element_t<I, Tuple>>{}...);
+			}(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
+		}
+
+		template <typename Tuple>
+		struct transform_tuple
+		{
+			template<template <typename> class Transform>
+			using with = decltype(transform_tuple_impl<Tuple, Transform>());
 		};
 
-		template<typename RetTy, typename...ArgTy>
-		struct function_traits<RetTy(&)(ArgTy...)>
-		{
-			using return_type = RetTy;
-			using args_tuple = typename std::tuple< std::remove_const_t<std::remove_reference_t<ArgTy>>...>;
-		};
-
-		template<typename T>
-		struct function_traits<T> : function_traits<decltype(&T::operator())> {};
-
-		template<typename RetTy, typename ObjTy, typename...ArgTy>
-		struct function_traits<RetTy(ObjTy::*)(ArgTy...) const>
-		{
-			using return_type = RetTy;
-			using args_tuple = typename std::tuple< std::remove_const_t<std::remove_reference_t<ArgTy>>...>;
-		};
-		
 		template<typename Fn, typename...Params>
 		struct query_traits
 		{
 			static constexpr size_t params_count = sizeof...(Params);
 
-			using args_tuple = typename meta::function_traits<Fn>::args_tuple;
+			using dirty_args_tuple = typename meta::function_traits<Fn>::args_tuple;
+			using args_tuple = typename transform_tuple<dirty_args_tuple>::template with<std::remove_cvref_t>;
+
 			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
 
 			using no_params_args_tuple = typename meta::sub_tuple<params_count, std::tuple_size_v<args_tuple>>::template of<args_tuple>;
@@ -119,7 +239,7 @@ namespace kawa
 			using require_args_tuple = typename meta::sub_tuple<0, std::tuple_size_v<no_params_args_tuple> -opt_args_count>::template of<no_params_args_tuple>;
 			static constexpr size_t require_args_count = std::tuple_size_v<require_args_tuple>;
 
-			using opt_args_tuple = typename  meta::sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
+			using opt_args_tuple = typename meta::sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
 		};
 
 		template<typename Fn, typename...Params>
@@ -127,7 +247,9 @@ namespace kawa
 		{
 			static constexpr size_t params_count = sizeof...(Params) + 1;
 
-			using args_tuple = meta::function_traits<Fn>::args_tuple;
+			using dirty_args_tuple = typename meta::function_traits<Fn>::args_tuple;
+			using args_tuple = typename transform_tuple<dirty_args_tuple>::template with<std::remove_cvref_t>;
+
 			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
 
 			using no_params_args_tuple = meta::sub_tuple<params_count, std::tuple_size_v<args_tuple>>::template of<args_tuple>;
@@ -137,25 +259,33 @@ namespace kawa
 			using require_args_tuple = meta::sub_tuple<0, std::tuple_size_v<no_params_args_tuple> -opt_args_count>::template of<no_params_args_tuple>;
 			static constexpr size_t require_args_count = std::tuple_size_v<require_args_tuple>;
 
-			using opt_args_tuple = meta::sub_tuple<std::tuple_size_v<no_params_args_tuple> - opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
+			using opt_args_tuple = meta::sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
 		};
 	};
+}
+#endif
+#ifndef KW_ECS_POLY_STORAGE
+#define	KW_ECS_POLY_STORAGE
 
+#include <memory>
+#include <new>
+#include <cstring> 
+
+#include <iostream>
+
+namespace kawa
+{
 	namespace ecs
 	{
-		typedef size_t entity_id;
-		typedef size_t storage_id;
-
-		constexpr inline entity_id nullent = 0;
 		namespace _internal
 		{
 			class poly_storage
 			{
-				using delete_fn_t	= void(*)(void*);
-				using erase_fn_t	= void(*)(void*, size_t);
-				using copy_fn_t		= void(*)(void*, size_t, size_t);
-				using move_fn_t		= void(*)(void*, size_t, size_t);
-				
+				using delete_fn_t = void(*)(void*);
+				using erase_fn_t = void(*)(void*, size_t);
+				using copy_fn_t = void(*)(void*, size_t, size_t);
+				using move_fn_t = void(*)(void*, size_t, size_t);
+
 			public:
 				inline poly_storage() noexcept = default;
 				inline ~poly_storage() noexcept
@@ -194,9 +324,9 @@ namespace kawa
 								::operator delete(data, std::align_val_t{ alignof(T) });
 							};
 
-						_mask =			new bool[capacity]();
-						_connector =	new size_t[capacity]();
-						_r_connector =	new size_t[capacity]();
+						_mask = new bool[capacity]();
+						_connector = new size_t[capacity]();
+						_r_connector = new size_t[capacity]();
 
 						_erase_fn =
 							[](void* data, size_t index)
@@ -204,25 +334,25 @@ namespace kawa
 								(static_cast<T*>(data) + index)->~T();
 							};
 
-						_copy_fn = [](void* data, size_t from, size_t to) 
+						_copy_fn = [](void* data, size_t from, size_t to)
 							{
 								if constexpr (std::is_trivially_copyable_v<T>)
 								{
 									memcpy
 									(
-										static_cast<T*>(data) + to, 
-										static_cast<T*>(data) + from, 
+										static_cast<T*>(data) + to,
+										static_cast<T*>(data) + from,
 										sizeof(T)
 									);
 
 								}
-								else if constexpr (std::is_copy_constructible_v<T>) 
+								else if constexpr (std::is_copy_constructible_v<T>)
 								{
 									new (static_cast<T*>(data) + to) T(*(static_cast<T*>(data) + from));
 								}
-								else 
+								else
 								{
-									KW_ECS_ASSERT_MSG(false, std::string("trying to copy uncopyable type") + typeid(T).name());
+									KW_ASSERT_MSG(false, std::string("trying to copy uncopyable type") + typeid(T).name());
 								}
 							};
 
@@ -243,7 +373,7 @@ namespace kawa
 								}
 								else
 								{
-									KW_ECS_ASSERT_MSG(false, std::string("trying to move unmovable type") + typeid(T).name());
+									KW_ASSERT_MSG(false, std::string("trying to move unmovable type") + typeid(T).name());
 								}
 							};
 
@@ -254,7 +384,7 @@ namespace kawa
 			public:
 				inline bool has(size_t index) noexcept
 				{
-					KW_ECS_ASSERT(_validate_index(index));
+					KW_ASSERT(_validate_index(index));
 
 					return _mask[index];
 				}
@@ -262,7 +392,7 @@ namespace kawa
 				template<typename T, typename...Args>
 				inline T& emplace(size_t index, Args&&...args)  noexcept
 				{
-					KW_ECS_ASSERT(_validate_index(index));
+					KW_ASSERT(_validate_index(index));
 
 					bool& cell = _mask[index];
 					if (!cell)
@@ -288,7 +418,7 @@ namespace kawa
 				template<typename T>
 				inline T& get(size_t index) noexcept
 				{
-					KW_ECS_ASSERT(_validate_index(index));
+					KW_ASSERT(_validate_index(index));
 
 					return *(static_cast<T*>(_storage) + index);
 				}
@@ -296,7 +426,7 @@ namespace kawa
 				template<typename T>
 				inline T* get_if_has(size_t index) noexcept
 				{
-					KW_ECS_ASSERT(_validate_index(index));
+					KW_ASSERT(_validate_index(index));
 
 					if (_mask[index])
 					{
@@ -307,7 +437,7 @@ namespace kawa
 
 				inline void erase(size_t index) noexcept
 				{
-					KW_ECS_ASSERT(_validate_index(index));
+					KW_ASSERT(_validate_index(index));
 
 					bool& cell = _mask[index];
 					if (cell)
@@ -325,8 +455,8 @@ namespace kawa
 
 				inline void copy(size_t from, size_t to) noexcept
 				{
-					KW_ECS_ASSERT(_validate_index(from));
-					KW_ECS_ASSERT(_validate_index(to));
+					KW_ASSERT(_validate_index(from));
+					KW_ASSERT(_validate_index(to));
 
 					if (has(from))
 					{
@@ -343,7 +473,7 @@ namespace kawa
 							_copy_fn(_storage, from, to);
 						}
 						else
-						{ 
+						{
 							_erase_fn(_storage, to);
 							_copy_fn(_storage, from, to);
 						}
@@ -352,8 +482,8 @@ namespace kawa
 
 				inline void move(size_t from, size_t to) noexcept
 				{
-					KW_ECS_ASSERT(_validate_index(from));
-					KW_ECS_ASSERT(_validate_index(to));
+					KW_ASSERT(_validate_index(from));
+					KW_ASSERT(_validate_index(to));
 
 					if (has(from))
 					{
@@ -390,10 +520,10 @@ namespace kawa
 					return true;
 				}
 
-				void*			_storage = nullptr;
-				bool*			_mask = nullptr;
-				size_t*			_connector = nullptr;
-				size_t*			_r_connector = nullptr;
+				void* _storage = nullptr;
+				bool* _mask = nullptr;
+				size_t* _connector = nullptr;
+				size_t* _r_connector = nullptr;
 				size_t			_occupied = 0;
 
 				erase_fn_t		_erase_fn = nullptr;
@@ -406,6 +536,24 @@ namespace kawa
 
 			};
 
+		}
+	}
+}
+#endif
+#ifndef KW_ECS_QUERY_PAR_ENGINE
+#define	KW_ECS_QUERY_PAR_ENGINE
+
+#include <thread>
+#include <barrier>
+#include <new>
+#include <functional>
+
+namespace kawa
+{
+	namespace ecs
+	{
+		namespace _internal
+		{
 			class query_par_engine
 			{
 			public:
@@ -415,7 +563,7 @@ namespace kawa
 					, _tasks_count(thread_count + 1)
 				{
 					_starts = new size_t[_tasks_count]();
-					_ends	= new size_t[_tasks_count]();
+					_ends = new size_t[_tasks_count]();
 
 					if (_thread_count)
 					{
@@ -497,19 +645,38 @@ namespace kawa
 				}
 
 			private:
-				std::thread*							_threads		= nullptr;
-				const size_t							_thread_count	= 0;
-				const size_t							_tasks_count	= 0;
-				bool									_should_join	= false;
+				std::thread* _threads = nullptr;
+				const size_t							_thread_count = 0;
+				const size_t							_tasks_count = 0;
+				bool									_should_join = false;
 
-				size_t*									_starts			= nullptr;
-				size_t*									_ends			= nullptr;
+				size_t* _starts = nullptr;
+				size_t* _ends = nullptr;
 
-				std::function<void(size_t, size_t)>		_query			= nullptr;
+				std::function<void(size_t, size_t)>		_query = nullptr;
 				std::barrier<>							_barrier;
 
 			};
+
 		}
+	}
+}
+#endif
+
+#define KW_MAX_UNIQUE_STORAGE_COUNT 255
+
+#ifndef KAWA_ECS_PARALLELISM
+#define KAWA_ECS_PARALLELISM (std::thread::hardware_concurrency() / 2)
+#endif
+
+namespace kawa
+{
+	namespace ecs
+	{
+		typedef size_t entity_id;
+		typedef size_t storage_id;
+
+		constexpr inline entity_id nullent = 0;
 
 		class registry
 		{
@@ -517,7 +684,7 @@ namespace kawa
 			static inline storage_id get_storage_id() noexcept
 			{
 				static storage_id id = _storage_id_counter++;
-				KW_ECS_ASSERT_MSG(id < KW_MAX_UNIQUE_STORAGE_COUNT, "max amoount os storage ids reached, increase KW_MAX_UNIQUE_STORAGE_COUNT for more avaliable storage ids");
+				KW_ASSERT_MSG(id < KW_MAX_UNIQUE_STORAGE_COUNT, "max amoount os storage ids reached, increase KW_MAX_UNIQUE_STORAGE_COUNT for more avaliable storage ids");
 				return id;
 			}
 
@@ -538,14 +705,6 @@ namespace kawa
 
 			inline ~registry() noexcept
 			{
-				for (storage_id i = 0; i < _storage_id_counter; i++)
-				{
-					if (_storage_mask[i])
-					{
-						_storage[i].~poly_storage();
-					}
-				}
-
 				delete[] _storage;
 				delete[] _storage_mask;
 				delete[] _entity_mask;
@@ -592,7 +751,7 @@ namespace kawa
 			template<typename T, typename...Args>
 			inline T& emplace(entity_id entity, Args&&...args) noexcept
 			{
-				KW_ECS_ASSERT(_validate_entity(entity));
+				KW_ASSERT(_validate_entity(entity));
 
 				static_assert(!std::is_const_v<T>, "component can not have const qualifier");
 
@@ -614,7 +773,7 @@ namespace kawa
 			template<typename T>
 			inline void erase(entity_id entity) noexcept
 			{
-				KW_ECS_ASSERT(_validate_entity(entity));
+				KW_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -633,7 +792,7 @@ namespace kawa
 			template<typename T>
 			inline bool has(entity_id entity) noexcept
 			{
-				KW_ECS_ASSERT(_validate_entity(entity));
+				KW_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -655,7 +814,7 @@ namespace kawa
 			template<typename T>
 			inline T& get(entity_id entity) noexcept
 			{
-				KW_ECS_ASSERT(_validate_entity(entity));
+				KW_ASSERT(_validate_entity(entity));
 
 				storage_id s_id = get_storage_id<T>();
 
@@ -665,7 +824,7 @@ namespace kawa
 			template<typename T>
 			inline T* get_if_has(entity_id entity) noexcept
 			{
-				KW_ECS_ASSERT(_validate_entity(entity));
+				KW_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -684,77 +843,77 @@ namespace kawa
 				return nullptr;
 			}
 
-				template<typename...Args>
-				inline void copy(entity_id from, entity_id to) noexcept
+			template<typename...Args>
+			inline void copy(entity_id from, entity_id to) noexcept
+			{
+				KW_ASSERT(_validate_entity(from));
+				KW_ASSERT(_validate_entity(to));
+
+				if (from != to)
 				{
-					KW_ECS_ASSERT(_validate_entity(from));
-					KW_ECS_ASSERT(_validate_entity(to));
-
-					if (from != to)
+					(([&]<typename T>()
 					{
-						(([&]<typename T>()
-						{
-							storage_id s_id = get_storage_id<T>();
-							_storage[s_id].copy(from, to);
+						storage_id s_id = get_storage_id<T>();
+						_storage[s_id].copy(from, to);
 
-						}. template operator() < Args > ()), ...);
+					}. template operator() < Args > ()), ...);
+				}
+			}
+
+			template<typename...Args>
+			inline void move(entity_id from, entity_id to) noexcept
+			{
+				KW_ASSERT(_validate_entity(from));
+				KW_ASSERT(_validate_entity(to));
+
+				if (from != to)
+				{
+					(([&]<typename T>()
+					{
+						storage_id s_id = get_storage_id<T>();
+
+						_storage[s_id].move(from, to);
+
+					}. template operator() < Args > ()), ...);
+				}
+			}
+
+			inline entity_id clone(entity_id from) noexcept
+			{
+				KW_ASSERT(_validate_entity(from));
+
+				entity_id e = entity();
+
+				if (!e) return e;
+
+				for (storage_id s_id = 0; s_id < KW_MAX_UNIQUE_STORAGE_COUNT; s_id++)
+				{
+					if (_storage_mask[s_id])
+					{
+						_storage[s_id].copy(from, e);
 					}
 				}
 
-				template<typename...Args>
-				inline void move(entity_id from, entity_id to) noexcept
+				return e;
+			}
+
+			inline void clone(entity_id from, entity_id to) noexcept
+			{
+				KW_ASSERT(_validate_entity(from));
+				KW_ASSERT(_validate_entity(to));
+
+				for (storage_id s_id = 0; s_id < KW_MAX_UNIQUE_STORAGE_COUNT; s_id++)
 				{
-					KW_ECS_ASSERT(_validate_entity(from));
-					KW_ECS_ASSERT(_validate_entity(to));
-
-					if (from != to)
+					if (_storage_mask[s_id])
 					{
-						(([&]<typename T>()
-						{
-							storage_id s_id = get_storage_id<T>();
-
-							_storage[s_id].move(from, to);
-
-						}. template operator() < Args > ()), ...);
+						_storage[s_id].copy(from, to);
 					}
 				}
-
-				inline entity_id clone(entity_id from) noexcept
-				{
-					KW_ECS_ASSERT(_validate_entity(from));
-
-					entity_id e = entity();
-
-					if (!e) return e;
-
-					for(storage_id s_id = 0; s_id < KW_MAX_UNIQUE_STORAGE_COUNT; s_id++)
-					{
-						if (_storage_mask[s_id])
-						{
-							_storage[s_id].copy(from, e);
-						}
-					}
-
-					return e;
-				}
-
-				inline void clone(entity_id from, entity_id to) noexcept
-				{
-					KW_ECS_ASSERT(_validate_entity(from));
-					KW_ECS_ASSERT(_validate_entity(to));
-
-					for (storage_id s_id = 0; s_id < KW_MAX_UNIQUE_STORAGE_COUNT; s_id++)
-					{
-						if (_storage_mask[s_id])
-						{
-							_storage[s_id].copy(from, to);
-						}
-					}
-				}
+			}
 
 			inline void destroy(entity_id entity) noexcept
 			{
-				KW_ECS_ASSERT(_validate_entity(entity));
+				KW_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -814,7 +973,7 @@ namespace kawa
 						[&](size_t start, size_t end)
 						{
 							for (size_t i = start; i < end; i++)
-							{ 
+							{
 								fn(std::forward<Params>(params)...);
 							}
 						}
@@ -873,7 +1032,7 @@ namespace kawa
 						[&](size_t start, size_t end)
 						{
 							for (size_t i = start; i < end; i++)
-							{ 
+							{
 
 								fn(_entity_entries[i], std::forward<Params>(params)...);
 							}
@@ -896,7 +1055,7 @@ namespace kawa
 			template<typename Fn, typename...Params>
 			inline void query_with(entity_id entity, Fn fn, Params&&...params) noexcept
 			{
-				KW_ECS_ASSERT(_validate_entity(entity));
+				KW_ASSERT(_validate_entity(entity));
 
 				using query_traits = typename meta::query_traits<Fn, Params...>;
 
@@ -1019,7 +1178,7 @@ namespace kawa
 				}
 			}
 
-			
+
 			template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params>
 			inline void _query_par_impl(Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 			{
@@ -1469,28 +1628,30 @@ namespace kawa
 			}
 
 		private:
-			_internal::poly_storage*	_storage			= nullptr;
+			_internal::poly_storage* _storage = nullptr;
 
-			size_t						_capacity			= 0;
-			size_t						_real_capacity		= 0;
-			size_t						_occupied			= 1;
-	
-			bool*						_storage_mask		= nullptr;
+			size_t						_capacity = 0;
+			size_t						_real_capacity = 0;
+			size_t						_occupied = 1;
 
-			bool*						_entity_mask		= nullptr;
+			bool* _storage_mask = nullptr;
 
-			size_t*						_entity_entries		= nullptr;
-			size_t*						_r_entity_entries	= nullptr;
-			size_t						_entries_counter	= 0;
+			bool* _entity_mask = nullptr;
 
-			size_t*						_free_list			= nullptr;
-			size_t						_free_list_size		= 0;
+			size_t* _entity_entries = nullptr;
+			size_t* _r_entity_entries = nullptr;
+			size_t						_entries_counter = 0;
+
+			size_t* _free_list = nullptr;
+			size_t						_free_list_size = 0;
 
 			_internal::query_par_engine	_query_par_engine;
 
 		private:
-			static inline storage_id	_storage_id_counter	= 0;
+			static inline storage_id	_storage_id_counter = 0;
 
 		};
 	}
 }
+
+#endif 
