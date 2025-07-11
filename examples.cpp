@@ -180,7 +180,7 @@ int main(int argc, char** argv)
     // must be `entity_id`, allowing users to directly access the entity being iterated.
     // 
     // IMPORTANT:
-    // Do NOT call `reg.destroy(id)` or use `reg.fetch_destroy(id)` to safely destroying entities inside queries.
+    // Do NOT call `reg.destroy(id)` use special `reg.fetch_destroy(id)` to safely destroying entities inside queries.
     // If you need to destroy entities, collect them first:
     // 
     // Signature:
