@@ -12,7 +12,14 @@
 
 ## 🏗️ Building & Using
 
-1. Copy **`registry.h`** into your include path.  
+**1. Single-header** 
+1. Copy **`single_header/registry.h`** into your include path.  
+2. `#include "registry.h"`  
+3. Compile with **C++20**  
+4. Profit!
+
+**2. Organized source** 
+1. Copy **`include`** directory into your include path.  
 2. `#include "registry.h"`  
 3. Compile with **C++20**  
 4. Profit!
@@ -23,14 +30,14 @@ No third-party dependencies, no linkage headaches.
 
 ## ✨ Features
 
-| 🚀                             | What                                                          | Details                                              |
-| ------------------------------ | ------------------------------------------------------------- | ---------------------------------------------------- |
-| **Ultra-fast**                 | Designed for maximum performance while remaining simple       | Cache-friendly storage, mindful optimizations        |
-| **Header-only**                | Single header `registry.h`                                    | No libs, no build dependencies                        |
-| **Type-safe**                  | `reg.emplace<Position>(e, …)`                                | Compile-time component IDs                            |
-| **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                              | Intuitive, flexible entity matching / system building |
-| **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                          | Flexible and safe multithreading                       |
-| **Debug asserts**              | `KW_ASSERT_MSG`                                          | Catch misuse early                                    |
+| 🚀                             | What                                                          | Details                                               |
+| ------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------|
+| **Ultra-fast**                 | Designed for maximum performance while remaining simple       | Cache-friendly storage, mindful optimizations         |
+| **Type-safe**                  | `reg.emplace<Position>(e, …)`                                 | Compile-time component IDs                            |
+| **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                               | Intuitive, flexible entity matching / system building |
+| **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                           | Flexible and safe multithreading                      |
+| **Debug asserts**              | `KW_ASSERT_MSG`                                               | Catch misuse early                                    |
+| **Single-header-option**       | Single header version `single_header/registry.h`              | Drop & go                                             |
 
 ---
 
