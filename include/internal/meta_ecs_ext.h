@@ -13,13 +13,16 @@ namespace kawa
 			return (0 + ... + (std::is_pointer_v<Types> ? 1 : 0));
 		}
 
+		template<typename Tuple, size_t... I>
+		constexpr size_t get_ptr_type_count_tuple_impl(std::index_sequence<I...>)
+		{
+			return get_ptr_type_count<std::tuple_element_t<I, Tuple>...>();
+		}
+
 		template<typename Tuple>
 		constexpr size_t get_ptr_type_count_tuple()
 		{
-			return[]<size_t... I>(std::index_sequence<I...>)
-			{
-				return get_ptr_type_count<std::tuple_element_t<I, Tuple>...>();
-			}(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
+			return get_ptr_type_count_tuple_impl<Tuple>(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
 		}
 
 		template<size_t Start, size_t End>
@@ -27,20 +30,26 @@ namespace kawa
 		{
 			static_assert(Start <= End, "Start index must be <= End");
 
+		private:
+			template<typename Tuple, size_t... I>
+			static std::tuple<std::tuple_element_t<Start + I, Tuple>...> 
+			make_sub_tuple_impl(std::index_sequence<I...>);
+
+		public:
 			template<typename Tuple>
-			using of = decltype([]<size_t... I>(std::index_sequence<I...>)
-			{
-				return std::tuple<std::tuple_element_t<Start + I, Tuple>...>{};
-			}(std::make_index_sequence<End - Start>{}));
+			using of = decltype(make_sub_tuple_impl<Tuple>(std::make_index_sequence<End - Start>{}));
 		};
+
+		template <typename Tuple, template <typename> class Transform, size_t... I>
+		constexpr auto transform_tuple_impl_helper(std::index_sequence<I...>)
+		{
+			return std::make_tuple(Transform<std::tuple_element_t<I, Tuple>>{}...);
+		}
 
 		template <typename Tuple, template <typename> class Transform>
 		constexpr auto transform_tuple_impl()
 		{
-			return[]<size_t... I>(std::index_sequence<I...>)
-			{
-				return std::make_tuple(Transform<std::tuple_element_t<I, Tuple>>{}...);
-			}(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
+			return transform_tuple_impl_helper<Tuple, Transform>(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
 		}
 
 		template <typename Tuple>
