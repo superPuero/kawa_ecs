@@ -100,7 +100,7 @@ int main()
 }
 
 ```
-> More examples and documentation in **examples.cpp**
+> More examples and documentation in **examples/examples.cpp**
 ---
 
 ## 📚 API Cheat‑Sheet
