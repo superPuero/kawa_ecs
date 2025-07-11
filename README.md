@@ -19,6 +19,10 @@
 
 No third-party dependencies, no linkage headaches.
 
+If optionally using modules, the steps are different:
+1. `cmake -S . -B build -G Ninja -DKAWA_ECS_BUILD_MODULES=ON`
+2. `cmake --build build`
+
 ---
 
 ## ✨ Features
@@ -27,10 +31,12 @@ No third-party dependencies, no linkage headaches.
 | ------------------------------ | ------------------------------------------------------------- | ---------------------------------------------------- |
 | **Ultra-fast**                 | Designed for maximum performance while remaining simple       | Cache-friendly storage, mindful optimizations        |
 | **Header-only**                | Single header `registry.h`                                    | No libs, no build dependencies                        |
+| **Module support**                | `KAWA_ECS_BUILD_MODULES`                                   | Build using CMake and `import kawa.ecs;`                   |
 | **Type-safe**                  | `reg.emplace<Position>(e, …)`                                | Compile-time component IDs                            |
 | **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                              | Intuitive, flexible entity matching / system building |
 | **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                          | Flexible and safe multithreading                       |
 | **Debug asserts**              | `KW_ECS_ASSERT_MSG`                                          | Catch misuse early                                    |
+| **Optional PascalCase aliases**        | `KAWA_ECS_PASCALCASE_NAMES`                                          | Optionally alias structs in PascalCase       |
 
 ---
 

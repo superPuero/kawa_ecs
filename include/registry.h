@@ -11,6 +11,8 @@
 #include <cstdint>
 #include <cstddef>
 
+#define KAWA_ECS_PASCALCASE_NAMES
+
 #ifdef _DEBUG																			
 
 #ifdef _MSC_VER
@@ -56,13 +58,16 @@ namespace kawa
 			return (0 + ... + (std::is_pointer_v<Types> ? 1 : 0));
 		}
 
+		template<typename Tuple, size_t... I>
+		constexpr size_t get_ptr_type_count_tuple_impl(std::index_sequence<I...>)
+		{
+			return get_ptr_type_count<std::tuple_element_t<I, Tuple>...>();
+		}
+
 		template<typename Tuple>
 		constexpr size_t get_ptr_type_count_tuple()
 		{
-			return[]<size_t... I>(std::index_sequence<I...>)
-			{
-				return get_ptr_type_count<std::tuple_element_t<I, Tuple>...>();
-			}(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
+			return get_ptr_type_count_tuple_impl<Tuple>(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
 		}
 
 		template<size_t Start, size_t End>
@@ -70,11 +75,14 @@ namespace kawa
 		{
 			static_assert(Start <= End, "Start index must be <= End");
 
+		private:
+			template<typename Tuple, size_t... I>
+			static std::tuple<std::tuple_element_t<Start + I, Tuple>...> 
+			make_sub_tuple_impl(std::index_sequence<I...>);
+
+		public:
 			template<typename Tuple>
-			using of = decltype([]<size_t... I>(std::index_sequence<I...>)
-			{
-				return std::tuple<std::tuple_element_t<Start + I, Tuple>...>{};
-			}(std::make_index_sequence<End - Start>{}));
+			using of = decltype(make_sub_tuple_impl<Tuple>(std::make_index_sequence<End - Start>{}));
 		};
 
 		template<typename RetTy, typename...ArgTy>
@@ -139,6 +147,20 @@ namespace kawa
 
 			using opt_args_tuple = meta::sub_tuple<std::tuple_size_v<no_params_args_tuple> - opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
 		};
+
+		#ifdef KAWA_ECS_PASCALCASE_NAMES
+		template<size_t Start, size_t End>
+		using SubTuple = sub_tuple<Start, End>;
+		
+		template<typename T>
+		using FunctionTraits = function_traits<T>;
+		
+		template<typename Fn, typename...Params>
+		using QueryTraits = query_traits<Fn, Params...>;
+		
+		template<typename Fn, typename...Params>
+		using QuerySelfTraits = query_self_traits<Fn, Params...>;
+		#endif
 	};
 
 	namespace ecs
@@ -1492,5 +1514,12 @@ namespace kawa
 			static inline storage_id	_storage_id_counter	= 0;
 
 		};
+
+		#ifdef KAWA_ECS_PASCALCASE_NAMES
+		using EntityID = entity_id;
+		using StorageID = storage_id;
+		constexpr inline EntityID NULLENT = nullent;
+		using Registry = registry;
+		#endif
 	}
 }
