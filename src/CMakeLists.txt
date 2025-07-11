@@ -1,4 +1,6 @@
-file(GLOB_RECURSE KAWA_ECS_MODULES *.cppm)
+set(KAWA_ECS_MODULES
+    registry.cppm
+)
 
 add_library(kawa_ecs_modules)
 target_sources(kawa_ecs_modules

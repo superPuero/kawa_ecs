@@ -3,7 +3,7 @@
 #define KAWA_ECS_PARALLELISM 8 // Set the number of threads for parallel queries (optional, default is half of hardware threads)
 //#define KAWA_ECS_PARALLELISM 0 // Srtting this to 0 will turn paralellism off, invocation of every "par" query will be executed exclusively on a main thread
 
-#include "single_header/registry.h"
+#include "../single_header/registry.h"
 #include <iostream>
 #include <string>
 
@@ -93,7 +93,7 @@ int main(int argc, char** argv)
     bool has = reg.has<Label>(e3);
 
     // Clone all components from an entity to a new one
-    // No need to specify component types — clone works via internal dynamic dispatch.
+    // No need to specify component types ï¿½ clone works via internal dynamic dispatch.
     entity_id e5 = reg.clone(e3);
 
     // Clone all components from e3 into e4 (overwrites e4's components if they exist)

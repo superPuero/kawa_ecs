@@ -29,6 +29,7 @@ No third-party dependencies, no linkage headaches.
 If optionally using modules, the steps are different:
 1. `cmake -S . -B build -G Ninja -DKAWA_ECS_BUILD_MODULES=ON`
 2. `cmake --build build`
+3. `import kawa.ecs;`
 
 ---
 
@@ -42,6 +43,7 @@ If optionally using modules, the steps are different:
 | **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                           | Flexible and safe multithreading                      |
 | **Debug asserts**              | `KW_ASSERT_MSG`                                               | Catch misuse early                                    |
 | **Single-header-option**       | Single header version `single_header/registry.h`              | Drop & go                                             |
+| **Modules support**       | Enable with `-DKAWA_ECS_BUILD_MODULES=ON`              | Import using `import kawa.ecs;`                                           |
 
 ---
 

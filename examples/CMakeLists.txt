@@ -1,6 +1,11 @@
 add_executable(kawa_ecs_examples examples.cpp)
 target_link_libraries(kawa_ecs_examples PRIVATE kawa_ecs)
 
+target_include_directories(kawa_ecs_modules
+    PUBLIC
+    ${kawa_ecs_SOURCE_DIR}/include
+)
+
 add_executable(kawa_ecs_stress_test stress_test.cpp)
 target_link_libraries(kawa_ecs_stress_test PRIVATE kawa_ecs)
 
