@@ -181,7 +181,6 @@ int main(int argc, char** argv)
     // 
     // IMPORTANT:
     // Do NOT call `reg.destroy(id)` use special `reg.fetch_destroy(id)` to safely destroying entities inside queries.
-    // If you need to destroy entities, collect them first:
     // 
     // Signature:
     //     [](entity_id id, fallthrough..., required..., optional...)
