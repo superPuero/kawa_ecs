@@ -4,7 +4,7 @@
 
 ---
 
-> header-only ECS that focuses on **raw speed, near-zero dynamic allocations**, and a  
+> This is entity component system that focuses on **raw speed, near-zero dynamic allocations**, and a  
 > *minimal, modern* API. Drop the header into any C++20 project and get an industrial-strength  
 > data-oriented backbone for games, simulations, or large-scale AI worlds.
 
