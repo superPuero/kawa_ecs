@@ -4,7 +4,7 @@
 
 ---
 
-> header-only ECS that focuses on **raw speed, near-zero dynamic allocations**, and a  
+> This is entity component system that focuses on **raw speed, near-zero dynamic allocations**, and a  
 > *minimal, modern* API. Drop the header into any C++20 project and get an industrial-strength  
 > data-oriented backbone for games, simulations, or large-scale AI worlds.
 
@@ -12,7 +12,14 @@
 
 ## 🏗️ Building & Using
 
-1. Copy **`registry.h`** into your include path.  
+**1. Single-header** 
+1. Copy **`single_header/registry.h`** into your include path.  
+2. `#include "registry.h"`  
+3. Compile with **C++20**  
+4. Profit!
+
+**2. Organized source** 
+1. Copy **`include`** directory into your include path.  
 2. `#include "registry.h"`  
 3. Compile with **C++20**  
 4. Profit!
@@ -27,16 +34,14 @@ If optionally using modules, the steps are different:
 
 ## ✨ Features
 
-| 🚀                             | What                                                          | Details                                              |
-| ------------------------------ | ------------------------------------------------------------- | ---------------------------------------------------- |
-| **Ultra-fast**                 | Designed for maximum performance while remaining simple       | Cache-friendly storage, mindful optimizations        |
-| **Header-only**                | Single header `registry.h`                                    | No libs, no build dependencies                        |
-| **Module support**                | `KAWA_ECS_BUILD_MODULES`                                   | Build using CMake and `import kawa.ecs;`                   |
-| **Type-safe**                  | `reg.emplace<Position>(e, …)`                                | Compile-time component IDs                            |
-| **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                              | Intuitive, flexible entity matching / system building |
-| **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                          | Flexible and safe multithreading                       |
-| **Debug asserts**              | `KW_ECS_ASSERT_MSG`                                          | Catch misuse early                                    |
-| **Optional PascalCase aliases**        | `KAWA_ECS_PASCALCASE_NAMES`                                          | Optionally alias structs in PascalCase       |
+| 🚀                             | What                                                          | Details                                               |
+| ------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------|
+| **Ultra-fast**                 | Designed for maximum performance while remaining simple       | Cache-friendly storage, mindful optimizations         |
+| **Type-safe**                  | `reg.emplace<Position>(e, …)`                                 | Compile-time component IDs                            |
+| **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                               | Intuitive, flexible entity matching / system building |
+| **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                           | Flexible and safe multithreading                      |
+| **Debug asserts**              | `KW_ASSERT_MSG`                                               | Catch misuse early                                    |
+| **Single-header-option**       | Single header version `single_header/registry.h`              | Drop & go                                             |
 
 ---
 
