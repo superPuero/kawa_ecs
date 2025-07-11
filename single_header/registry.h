@@ -206,21 +206,17 @@ namespace kawa
 			}(std::make_index_sequence<End - Start>{}));
 		};
 
-		template <typename Tuple, template <typename> class Transform>
-		constexpr auto transform_tuple_impl()
-		{
-			return[]<size_t... I>(std::index_sequence<I...>)
-			{
-				return std::make_tuple(Transform<std::tuple_element_t<I, Tuple>>{}...);
-			}(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
-		}
+		template <typename T, template <typename> typename F>
+		struct transform_tuple;
 
-		template <typename Tuple>
-		struct transform_tuple
+		template <template <typename> typename F, typename... Types>
+		struct transform_tuple<std::tuple<Types...>, F>
 		{
-			template<template <typename> class Transform>
-			using with = decltype(transform_tuple_impl<Tuple, Transform>());
+			using type = typename std::tuple<F<Types>...>;
 		};
+
+		template <typename T, template <typename...> typename F>
+		using transform_tuple_t = typename transform_tuple<T, F>::type;
 
 		template<typename Fn, typename...Params>
 		struct query_traits
@@ -228,7 +224,7 @@ namespace kawa
 			static constexpr size_t params_count = sizeof...(Params);
 
 			using dirty_args_tuple = typename meta::function_traits<Fn>::args_tuple;
-			using args_tuple = typename transform_tuple<dirty_args_tuple>::template with<std::remove_cvref_t>;
+			using args_tuple = transform_tuple_t<dirty_args_tuple, std::remove_cvref_t>;
 
 			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
 
@@ -248,7 +244,7 @@ namespace kawa
 			static constexpr size_t params_count = sizeof...(Params) + 1;
 
 			using dirty_args_tuple = typename meta::function_traits<Fn>::args_tuple;
-			using args_tuple = typename transform_tuple<dirty_args_tuple>::template with<std::remove_cvref_t>;
+			using args_tuple = transform_tuple_t<dirty_args_tuple, std::remove_cvref_t>;
 
 			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
 
@@ -1677,24 +1673,24 @@ namespace kawa
 			}
 
 		private:
-			_internal::poly_storage* _storage = nullptr;
+			_internal::poly_storage*	_storage = nullptr;
 
 			size_t						_capacity = 0;
 			size_t						_real_capacity = 0;
 			size_t						_occupied = 1;
 
-			bool* _storage_mask = nullptr;
+			bool*						_storage_mask = nullptr;
 
-			bool* _entity_mask = nullptr;
+			bool*						_entity_mask = nullptr;
 
-			size_t* _entity_entries = nullptr;
-			size_t* _r_entity_entries = nullptr;
+			size_t*						_entity_entries = nullptr;
+			size_t*						_r_entity_entries = nullptr;
 			size_t						_entries_counter = 0;
 
-			size_t* _fetch_destroy_list = nullptr;
+			size_t*						_fetch_destroy_list = nullptr;
 			size_t						_fetch_destroy_list_size = 0;
 
-			size_t* _free_list = nullptr;
+			size_t*						_free_list = nullptr;
 			size_t						_free_list_size = 0;
 
 			_internal::query_par_engine	_query_par_engine;
@@ -1705,5 +1701,6 @@ namespace kawa
 		};
 	}
 }
+
 
 #endif 
