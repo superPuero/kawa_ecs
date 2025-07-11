@@ -24,7 +24,6 @@ struct Velocity
 struct Label
 {
     std::string name;
-    ~Label(){std::cout << "DEST" <<  name<< '\n'; }
 };
 
 // Sample functions used for queries
