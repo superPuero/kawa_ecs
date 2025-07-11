@@ -180,12 +180,12 @@ int main(int argc, char** argv)
     // must be `entity_id`, allowing users to directly access the entity being iterated.
     // 
     // IMPORTANT:
-    // Do NOT call `reg.destroy(id)` or otherwise destroy the current entity from within a `query_self` loop.
-    // Doing so can invalidate the internal iteration and cause crashes or undefined behavior.
+    // Do NOT call `reg.destroy(id)` or use `reg.fetch_destroy(id)` to safely destroying entities inside queries.
     // If you need to destroy entities, collect them first:
     // 
     // Signature:
     //     [](entity_id id, fallthrough..., required..., optional...)
+
     reg.query_self
     (
         [](entity_id id, Position& pos, Velocity& vel)
@@ -193,6 +193,18 @@ int main(int argc, char** argv)
             pos.x += vel.x;
             pos.y += vel.y;
             std::cout << "Entity " << id << " moved to (" << pos.x << ", " << pos.y << ")\n";
+        }
+    );
+
+    reg.query_self
+    (
+        [&](entity_id id, Label& label)
+        {
+            if (label.name == "Dude")
+            {
+                std::cout << "Scheduling delete for entity: " << id << '\n';
+                reg.fetch_destroy(id); // Safe inside query
+            }
         }
     );
 

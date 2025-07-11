@@ -41,6 +41,7 @@ namespace kawa
 
 				_storage = new _internal::poly_storage[KW_MAX_UNIQUE_STORAGE_COUNT];
 				_storage_mask = new bool[KW_MAX_UNIQUE_STORAGE_COUNT]();
+				_fetch_destroy_list = new size_t[_real_capacity];
 				_free_list = new size_t[_real_capacity]();
 				_entity_mask = new bool[_real_capacity]();
 				_entity_entries = new size_t[_real_capacity]();
@@ -52,6 +53,7 @@ namespace kawa
 				delete[] _storage;
 				delete[] _storage_mask;
 				delete[] _entity_mask;
+				delete[] _fetch_destroy_list;
 				delete[] _free_list;
 				delete[] _entity_entries;
 				delete[] _r_entity_entries;
@@ -281,6 +283,18 @@ namespace kawa
 				}
 			}
 
+			inline void fetch_destroy(entity_id entity) noexcept
+			{
+				KW_ASSERT(_validate_entity(entity));
+
+				bool& entity_cell = _entity_mask[entity];
+
+				if (entity_cell)
+				{
+					_fetch_destroy_list[_fetch_destroy_list_size++] = entity;
+				}
+			}
+
 			template<typename Fn, typename...Params>
 			inline void query(Fn&& fn, Params&&...params) noexcept
 			{
@@ -303,6 +317,7 @@ namespace kawa
 							std::forward<Params>(params)...
 						);
 				}
+				_fetch_destroy_exec();	
 			}
 
 			template<typename Fn, typename...Params>
@@ -334,6 +349,8 @@ namespace kawa
 							std::forward<Params>(params)...
 						);
 				}
+
+				_fetch_destroy_exec();
 			}
 
 			template<typename Fn, typename...Params>
@@ -360,6 +377,8 @@ namespace kawa
 							std::forward<Params>(params)...
 						);
 				}
+
+				_fetch_destroy_exec();
 			}
 
 			template<typename Fn, typename...Params>
@@ -394,6 +413,8 @@ namespace kawa
 							std::forward<Params>(params)...
 						);
 				}
+
+				_fetch_destroy_exec();
 			}
 
 			template<typename Fn, typename...Params>
@@ -421,9 +442,37 @@ namespace kawa
 							);
 					}
 				}
+
+				_fetch_destroy_exec();
 			}
 
 		private:
+			inline void _fetch_destroy_exec() noexcept
+			{
+				for (size_t i = 0; i < _fetch_destroy_list_size; i++)
+				{
+					entity_id e = _fetch_destroy_list[i];
+
+					for (size_t s_id = 0; s_id < _storage_id_counter; s_id++)
+					{
+						if (_storage_mask[s_id])
+						{
+							_storage[s_id].erase(e);
+						}
+					}
+
+					_free_list[_free_list_size++] = e;
+					_entity_mask[e] = false;
+
+					size_t idx = _r_entity_entries[e];
+
+					_entity_entries[idx] = _entity_entries[--_entries_counter];
+					_r_entity_entries[_entity_entries[_entries_counter]] = idx;
+				}
+
+				_fetch_destroy_list_size = 0;
+			}
+
 			template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params>
 			inline void _query_impl(Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 			{
@@ -972,21 +1021,24 @@ namespace kawa
 			}
 
 		private:
-			_internal::poly_storage* _storage = nullptr;
+			_internal::poly_storage*	_storage = nullptr;
 
 			size_t						_capacity = 0;
 			size_t						_real_capacity = 0;
 			size_t						_occupied = 1;
 
-			bool* _storage_mask = nullptr;
+			bool*						_storage_mask = nullptr;
 
-			bool* _entity_mask = nullptr;
+			bool*						_entity_mask = nullptr;
 
-			size_t* _entity_entries = nullptr;
-			size_t* _r_entity_entries = nullptr;
+			size_t*						_entity_entries = nullptr;
+			size_t*						_r_entity_entries = nullptr;
 			size_t						_entries_counter = 0;
 
-			size_t* _free_list = nullptr;
+			size_t*						_fetch_destroy_list = nullptr;
+			size_t						_fetch_destroy_list_size = 0;
+
+			size_t*						_free_list = nullptr;
 			size_t						_free_list_size = 0;
 
 			_internal::query_par_engine	_query_par_engine;

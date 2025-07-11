@@ -1,7 +1,8 @@
 #include <iostream>
 #include <chrono>
 #include <atomic>
-#include "single_header/registry.h"
+
+#include "include/registry.h"
 
 using namespace kawa::ecs;
 
@@ -14,7 +15,7 @@ struct Tag { std::string label; };
 struct Transform { Transform(const float* src) { std::copy(src, src + 16, matrix); } float matrix[32]; };
 struct AI { int state; };
 
-constexpr size_t ENTITY_COUNT = 10'000'000;
+constexpr size_t ENTITY_COUNT = 100'000;
 
 template <typename Fn>
 double benchmark(const std::string& name, Fn&& fn)
@@ -29,10 +30,12 @@ double benchmark(const std::string& name, Fn&& fn)
 }
 
 int main()
-{
+{   
     registry reg(ENTITY_COUNT);
     std::vector<entity_id> entities;
     entities.reserve(ENTITY_COUNT);
+
+    std::cout << "kawa::ecs::registry will use " << KAWA_ECS_PARALLELISM << " threads for parallel queries" << '\n';
 
     benchmark
     (
@@ -450,6 +453,8 @@ int main()
         }
     );
 
+    std::cin.get();
+
     benchmark
     (
         "Destroy All", [&]()
@@ -459,7 +464,6 @@ int main()
         }
     );
 
-    std::cin.get();
 
 
 }
