@@ -44,7 +44,6 @@ int main(int argc, char** argv)
     using namespace kawa::ecs;
 
     // === 1. Constructing the Registry ===
-    {
     registry reg(256);  // Provide max amount of entities upfront
 
     // === 2. Creating Entities ===
@@ -182,6 +181,8 @@ int main(int argc, char** argv)
     // IMPORTANT:
     // Do NOT call `reg.destroy(id)` use special `reg.fetch_destroy(id)` to safely destroying entities inside queries.
     // 
+    // fetch_destroy will proceed to actual destroying after the query ends, but before it exits
+    // 
     // Signature:
     //     [](entity_id id, fallthrough..., required..., optional...)
 
@@ -246,13 +247,7 @@ int main(int argc, char** argv)
     // === 7. Destroying an Entity ===
     reg.destroy(e3);
 
-    std::cout << KAWA_ECS_PARALLELISM << '\n';
-
     std::cin.get();
-
-    }
-
-std::cin.get();
 
     return 0;
 }
