@@ -7,7 +7,7 @@
 #include <iostream>
 #include <string>
 
-// User Definecomponents
+// User defined components
 struct Position
 {
     float x;
