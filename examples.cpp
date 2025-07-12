@@ -210,7 +210,7 @@ int main(int argc, char** argv)
 
     // === 6.2. Parallel Querying ===
     //
-    // query_par behaves like `query`, but executes the loop body in multi-threaded context.
+    // query_par behaves like `query`, but divides the work between multiple threads.
     // It's ideal for parallel updates, physics steps, AI, or any independent per-entity work.
     //
     // Default ammout of threads allocated for is half of the hardware threads.
