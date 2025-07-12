@@ -1,6 +1,3 @@
-#ifndef KW_ECS_REGISTRY
-#define KW_ECS_REGISTRY
-
 #ifndef KW_CORE
 #define KW_CORE
 
@@ -43,6 +40,12 @@
 #include <string>
 #include <string_view>
 #include <cstdint>
+#include <string>
+#include <string_view>
+#include <cstdint>
+#include <utility>
+#include <tuple>
+#include <type_traits>
 
 #if defined(__clang__)
 #	define KW_META_PRETTYFUNC __PRETTY_FUNCTION__
@@ -66,7 +69,6 @@ namespace kawa
 	{
 		namespace _internal
 		{
-
 			template<typename T>
 			extern const T fake_object;
 
@@ -178,21 +180,23 @@ namespace kawa
 {
 	namespace meta
 	{
-
 		template<typename...Types>
-		constexpr size_t get_ptr_type_count()
+		constexpr size_t get_ptr_type_count_impl()
 		{
 			return (0 + ... + (std::is_pointer_v<Types> ? 1 : 0));
 		}
 
-		template<typename Tuple>
-		constexpr size_t get_ptr_type_count_tuple()
+		template<typename...Types>
+		struct get_ptr_type_count
 		{
-			return[]<size_t... I>(std::index_sequence<I...>)
-			{
-				return get_ptr_type_count<std::tuple_element_t<I, Tuple>...>();
-			}(std::make_index_sequence<std::tuple_size_v<Tuple>>{});
-		}
+			constexpr static size_t value = get_ptr_type_count_impl<Types...>();
+		};
+
+		template<typename...Types>
+		struct get_ptr_type_count<std::tuple<Types...>>
+		{
+			constexpr static size_t value = get_ptr_type_count_impl<Types...>();
+		};
 
 		template<size_t Start, size_t End>
 		struct sub_tuple
@@ -207,35 +211,35 @@ namespace kawa
 		};
 
 		template <typename T, template <typename> typename F>
-		struct transform_tuple;
+		struct transform_each;
 
-		template <template <typename> typename F, typename... Types>
-		struct transform_tuple<std::tuple<Types...>, F>
+		template <typename...Types, template <typename> typename F>
+		struct transform_each<std::tuple<Types...>, F>
 		{
 			using type = typename std::tuple<F<Types>...>;
 		};
 
 		template <typename T, template <typename...> typename F>
-		using transform_tuple_t = typename transform_tuple<T, F>::type;
+		using transform_each_t = typename transform_each<T, F>::type;
 
 		template<typename Fn, typename...Params>
 		struct query_traits
 		{
 			static constexpr size_t params_count = sizeof...(Params);
 
-			using dirty_args_tuple = typename meta::function_traits<Fn>::args_tuple;
-			using args_tuple = transform_tuple_t<dirty_args_tuple, std::remove_cvref_t>;
+			using dirty_args_tuple = typename function_traits<Fn>::args_tuple;
+			using args_tuple = transform_each_t<dirty_args_tuple, std::remove_cvref_t>;
 
 			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
 
-			using no_params_args_tuple = typename meta::sub_tuple<params_count, std::tuple_size_v<args_tuple>>::template of<args_tuple>;
+			using no_params_args_tuple = typename sub_tuple<params_count, std::tuple_size_v<args_tuple>>::template of<args_tuple>;
 
-			static constexpr size_t opt_args_count = meta::get_ptr_type_count_tuple<no_params_args_tuple>();
+			static constexpr size_t opt_args_count = get_ptr_type_count<no_params_args_tuple>::value;
 
-			using require_args_tuple = typename meta::sub_tuple<0, std::tuple_size_v<no_params_args_tuple> -opt_args_count>::template of<no_params_args_tuple>;
+			using require_args_tuple = typename sub_tuple<0, std::tuple_size_v<no_params_args_tuple> -opt_args_count>::template of<no_params_args_tuple>;
 			static constexpr size_t require_args_count = std::tuple_size_v<require_args_tuple>;
 
-			using opt_args_tuple = typename meta::sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
+			using opt_args_tuple = typename sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
 		};
 
 		template<typename Fn, typename...Params>
@@ -243,19 +247,19 @@ namespace kawa
 		{
 			static constexpr size_t params_count = sizeof...(Params) + 1;
 
-			using dirty_args_tuple = typename meta::function_traits<Fn>::args_tuple;
-			using args_tuple = transform_tuple_t<dirty_args_tuple, std::remove_cvref_t>;
+			using dirty_args_tuple = typename function_traits<Fn>::args_tuple;
+			using args_tuple = transform_each_t<dirty_args_tuple, std::remove_cvref_t>;
 
 			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
 
-			using no_params_args_tuple = meta::sub_tuple<params_count, std::tuple_size_v<args_tuple>>::template of<args_tuple>;
+			using no_params_args_tuple = sub_tuple<params_count, std::tuple_size_v<args_tuple>>::template of<args_tuple>;
 
-			static constexpr size_t opt_args_count = meta::get_ptr_type_count_tuple<no_params_args_tuple>();
+			static constexpr size_t opt_args_count = get_ptr_type_count<no_params_args_tuple>::value;
 
-			using require_args_tuple = meta::sub_tuple<0, std::tuple_size_v<no_params_args_tuple> -opt_args_count>::template of<no_params_args_tuple>;
+			using require_args_tuple = sub_tuple<0, std::tuple_size_v<no_params_args_tuple> -opt_args_count>::template of<no_params_args_tuple>;
 			static constexpr size_t require_args_count = std::tuple_size_v<require_args_tuple>;
 
-			using opt_args_tuple = meta::sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
+			using opt_args_tuple = sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
 		};
 	};
 }
@@ -312,11 +316,19 @@ namespace kawa
 					{
 						_capacity = capacity;
 
-						_storage = ::operator new(sizeof(T) * capacity, std::align_val_t{ alignof(T) });
+						if constexpr (!std::is_empty_v<T>)
+						{
+							_storage = ::operator new(sizeof(T) * capacity, std::align_val_t{ alignof(T) });
+						}
 
 						_delete_fn =
 							[](void* data)
 							{
+								if constexpr (std::is_empty_v<T>)
+								{
+									return;
+								}
+
 								::operator delete(data, std::align_val_t{ alignof(T) });
 							};
 
@@ -327,22 +339,22 @@ namespace kawa
 						_erase_fn =
 							[](void* data, size_t index)
 							{
+								if constexpr (std::is_empty_v<T>)
+								{
+									return;
+								}
+
 								(static_cast<T*>(data) + index)->~T();
 							};
 
 						_copy_fn = [](void* data, size_t from, size_t to)
 							{
-								if constexpr (std::is_trivially_copyable_v<T>)
+								if constexpr (std::is_empty_v<T>)
 								{
-									memcpy
-									(
-										static_cast<T*>(data) + to,
-										static_cast<T*>(data) + from,
-										sizeof(T)
-									);
-
+									return;
 								}
-								else if constexpr (std::is_copy_constructible_v<T>)
+
+								if constexpr (std::is_copy_constructible_v<T>)
 								{
 									new (static_cast<T*>(data) + to) T(*(static_cast<T*>(data) + from));
 								}
@@ -354,16 +366,12 @@ namespace kawa
 
 						_move_fn = [](void* data, size_t from, size_t to)
 							{
-								if constexpr (std::is_trivially_move_constructible_v<T>)
+								if constexpr (std::is_empty_v<T>)
 								{
-									memcpy
-									(
-										static_cast<T*>(data) + to,
-										static_cast<T*>(data) + from,
-										sizeof(T)
-									);
+									return;
 								}
-								else if constexpr (std::is_move_constructible_v<T>)
+
+								if constexpr (std::is_move_constructible_v<T>)
 								{
 									new (static_cast<T*>(data) + to) T(std::move(*(static_cast<T*>(data) + from)));
 								}
@@ -658,6 +666,8 @@ namespace kawa
 	}
 }
 #endif
+#ifndef KW_ECS_REGISTRY
+#define KW_ECS_REGISTRY
 
 #define KW_MAX_UNIQUE_STORAGE_COUNT 255
 
@@ -1701,6 +1711,5 @@ namespace kawa
 		};
 	}
 }
-
 
 #endif 

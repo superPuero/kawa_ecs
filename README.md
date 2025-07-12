@@ -19,8 +19,8 @@
 4. Profit!
 
 **2. Organized source** 
-1. Copy **`include`** directory into your include path.  
-2. `#include "registry.h"`  
+1. Copy **`kawa`** directory into your include path.  
+2. `#include "kawa/ecs/registry.h"`  
 3. Compile with **C++20**  
 4. Profit!
 

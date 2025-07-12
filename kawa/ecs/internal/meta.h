@@ -3,6 +3,9 @@
 #include <string>
 #include <string_view>
 #include <cstdint>
+#include <utility>
+#include <tuple>
+#include <type_traits>
 
 #if defined(__clang__)
 #	define KW_META_PRETTYFUNC __PRETTY_FUNCTION__

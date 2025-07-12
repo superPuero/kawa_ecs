@@ -51,11 +51,19 @@ namespace ecs
 				{
 					_capacity = capacity;
 
-					_storage = ::operator new(sizeof(T) * capacity, std::align_val_t{ alignof(T) });
+					if constexpr (!std::is_empty_v<T>)
+					{
+						_storage = ::operator new(sizeof(T) * capacity, std::align_val_t{ alignof(T) });
+					} 
 
 					_delete_fn =
 						[](void* data)
 						{
+							if constexpr (std::is_empty_v<T>)
+							{
+								return;
+							}
+
 							::operator delete(data, std::align_val_t{ alignof(T) });
 						};
 
@@ -66,22 +74,22 @@ namespace ecs
 					_erase_fn =
 						[](void* data, size_t index)
 						{
+							if constexpr (std::is_empty_v<T>)
+							{
+								return;
+							}
+
 							(static_cast<T*>(data) + index)->~T();
 						};
 
 					_copy_fn = [](void* data, size_t from, size_t to)
 						{
-							if constexpr (std::is_trivially_copyable_v<T>)
+							if constexpr (std::is_empty_v<T>)
 							{
-								memcpy
-								(
-									static_cast<T*>(data) + to,
-									static_cast<T*>(data) + from,
-									sizeof(T)
-								);
-
+								return;
 							}
-							else if constexpr (std::is_copy_constructible_v<T>)
+
+							if constexpr (std::is_copy_constructible_v<T>)
 							{
 								new (static_cast<T*>(data) + to) T(*(static_cast<T*>(data) + from));
 							}
@@ -93,16 +101,12 @@ namespace ecs
 
 					_move_fn = [](void* data, size_t from, size_t to)
 						{
-							if constexpr (std::is_trivially_move_constructible_v<T>)
+							if constexpr (std::is_empty_v<T>)
 							{
-								memcpy
-								(
-									static_cast<T*>(data) + to,
-									static_cast<T*>(data) + from,
-									sizeof(T)
-								);
+								return;
 							}
-							else if constexpr (std::is_move_constructible_v<T>)
+
+							if constexpr (std::is_move_constructible_v<T>)
 							{
 								new (static_cast<T*>(data) + to) T(std::move(*(static_cast<T*>(data) + from)));
 							}

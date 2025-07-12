@@ -3,12 +3,11 @@
 #define KAWA_ECS_PARALLELISM 8 // Set the number of threads for parallel queries (optional, default is half of hardware threads)
 //#define KAWA_ECS_PARALLELISM 0 // Srtting this to 0 will turn paralellism off, invocation of every "par" query will be executed exclusively on a main thread
 
-#include "single_header/registry.h"
+#include "kawa/ecs/registry.h"
 #include <iostream>
 #include <string>
 
-// Define user components
-
+// User Definecomponents
 struct Position
 {
     float x;
@@ -179,9 +178,9 @@ int main(int argc, char** argv)
     // must be `entity_id`, allowing users to directly access the entity being iterated.
     // 
     // IMPORTANT:
-    // Do NOT call `reg.destroy(id)` use special `reg.fetch_destroy(id)` to safely destroying entities inside queries.
-    // 
-    // fetch_destroy will proceed to actual destroying after the query ends, but before it exits
+    // Do NOT call `reg.destroy(id)` directly in query function body, there are two possible solutions to this problem
+	// 1. (more idiomatic) collect entities during query yourself and schedule destroying.
+    // 2. (easier) use special `reg.fetch_destroy(id)` to offload collecting and destroying entities inside queries to registry.
     // 
     // Signature:
     //     [](entity_id id, fallthrough..., required..., optional...)
@@ -203,9 +202,10 @@ int main(int argc, char** argv)
             if (label.name == "Dude")
             {
                 std::cout << "Scheduling delete for entity: " << id << '\n';
-                reg.fetch_destroy(id); // Safe inside query
+				reg.fetch_destroy(id); // Collect entities for destruction
             }
-        }
+        }       
+    // Accumulated entities will be destroyed right before query exits.
     );
 
     // === 6.2. Parallel Querying ===

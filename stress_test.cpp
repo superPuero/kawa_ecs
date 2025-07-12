@@ -2,7 +2,7 @@
 #include <chrono>
 #include <atomic>
 
-#include "include/registry.h"
+#include "kawa/ecs/registry.h"
 
 using namespace kawa::ecs;
 
@@ -14,6 +14,7 @@ struct Flags { uint32_t mask; };
 struct Tag { std::string label; };
 struct Transform { Transform(const float* src) { std::copy(src, src + 16, matrix); } float matrix[32]; };
 struct AI { int state; };
+struct Enemy {};
 
 constexpr size_t ENTITY_COUNT = 100'000;
 
@@ -36,6 +37,7 @@ int main()
     entities.reserve(ENTITY_COUNT);
 
     std::cout << "kawa::ecs::registry will use " << KAWA_ECS_PARALLELISM << " threads for parallel queries" << '\n';
+    std::cout << '\n';
 
     benchmark
     (
@@ -99,6 +101,19 @@ int main()
             }
         }
     );
+
+    benchmark
+    (
+        "Add Flag Component (Every 4th)",
+        [&]()
+        {
+            for (size_t i = 0; i < ENTITY_COUNT; i += 4)
+            {
+                reg.emplace<Enemy>(entities[i]);
+            }
+        }
+    );
+
 
     benchmark
     (
@@ -340,6 +355,43 @@ int main()
             );
         }
     );
+
+    benchmark
+    (
+        "Query Entities with Flag",
+        [&]()
+        {
+            size_t count = 0;
+            reg.query
+            (
+                [&](Enemy&, Vec3& pos)
+                {
+                    pos.y += 1.0f;
+                    ++count;
+                }
+            );
+            std::cout << "Entities with Enemy flag: " << count << '\n';
+        }
+    );
+
+    benchmark
+    (
+        "Parallel Query with Flag (Atomic counter)",
+        [&]()
+        {
+            std::atomic<size_t> count = 0;
+            reg.query_par
+            (
+                [&](Enemy&, Vec3& pos)
+                {
+                    pos.y += 1.0f;
+                    ++count;
+                }
+            );
+            std::cout << "Entities with Enemy flag: " << count << '\n';
+        }
+    );
+
 
     benchmark
     (
