@@ -32,6 +32,7 @@ double benchmark(const std::string& name, Fn&& fn)
 
 int main()
 {   
+{
     registry reg(ENTITY_COUNT);
     std::vector<entity_id> entities;
     entities.reserve(ENTITY_COUNT);
@@ -505,17 +506,18 @@ int main()
         }
     );
 
-    std::cin.get();
-
+    
     benchmark
     (
         "Destroy All", [&]()
         {
             for (entity_id id : entities)
-                reg.destroy(id);
+            reg.destroy(id);
         }
     );
-
-
+    
+    std::cin.get();
+}
+    std::cin.get();
 
 }
