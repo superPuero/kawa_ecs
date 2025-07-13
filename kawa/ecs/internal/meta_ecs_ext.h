@@ -1,5 +1,5 @@
-#ifndef KW_META_ECS_EXT
-#define	KW_META_ECS_EXT
+#ifndef KAWA_META_ECS_EXT
+#define	KAWA_META_ECS_EXT
 
 #include "meta.h"
 

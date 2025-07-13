@@ -2,7 +2,8 @@
 #include <chrono>
 #include <atomic>
 
-#include "kawa/ecs/registry.h"
+ //#include "kawa/ecs/registry.h"
+#include "single_header/registry.h"
 
 using namespace kawa::ecs;
 

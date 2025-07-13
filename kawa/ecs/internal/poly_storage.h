@@ -1,5 +1,5 @@
-#ifndef KW_ECS_POLY_STORAGE
-#define	KW_ECS_POLY_STORAGE
+#ifndef KAWA_ECS_POLY_STORAGE
+#define	KAWA_ECS_POLY_STORAGE
 
 #include <memory>
 #include <new>
@@ -95,7 +95,7 @@ namespace ecs
 							}
 							else
 							{
-								KW_ASSERT_MSG(false, std::string("trying to copy uncopyable type") + typeid(T).name());
+								KAWA_ASSERT_MSG(false, std::string("trying to copy uncopyable type") + typeid(T).name());
 							}
 						};
 
@@ -112,7 +112,7 @@ namespace ecs
 							}
 							else
 							{
-								KW_ASSERT_MSG(false, std::string("trying to move unmovable type") + typeid(T).name());
+								KAWA_ASSERT_MSG(false, std::string("trying to move unmovable type") + typeid(T).name());
 							}
 						};
 
@@ -123,7 +123,7 @@ namespace ecs
 		public:
 			inline bool has(size_t index) noexcept
 			{
-				KW_ASSERT(_validate_index(index));
+				KAWA_ASSERT(_validate_index(index));
 
 				return _mask[index];
 			}
@@ -131,7 +131,7 @@ namespace ecs
 			template<typename T, typename...Args>
 			inline T& emplace(size_t index, Args&&...args)  noexcept
 			{
-				KW_ASSERT(_validate_index(index));
+				KAWA_ASSERT(_validate_index(index));
 
 				bool& cell = _mask[index];
 				if (!cell)
@@ -157,7 +157,7 @@ namespace ecs
 			template<typename T>
 			inline T& get(size_t index) noexcept
 			{
-				KW_ASSERT(_validate_index(index));
+				KAWA_ASSERT(_validate_index(index));
 
 				return *(static_cast<T*>(_storage) + index);
 			}
@@ -165,7 +165,7 @@ namespace ecs
 			template<typename T>
 			inline T* get_if_has(size_t index) noexcept
 			{
-				KW_ASSERT(_validate_index(index));
+				KAWA_ASSERT(_validate_index(index));
 
 				if (_mask[index])
 				{
@@ -176,7 +176,7 @@ namespace ecs
 
 			inline void erase(size_t index) noexcept
 			{
-				KW_ASSERT(_validate_index(index));
+				KAWA_ASSERT(_validate_index(index));
 
 				bool& cell = _mask[index];
 				if (cell)
@@ -194,8 +194,8 @@ namespace ecs
 
 			inline void copy(size_t from, size_t to) noexcept
 			{
-				KW_ASSERT(_validate_index(from));
-				KW_ASSERT(_validate_index(to));
+				KAWA_ASSERT(_validate_index(from));
+				KAWA_ASSERT(_validate_index(to));
 
 				if (has(from))
 				{
@@ -221,8 +221,8 @@ namespace ecs
 
 			inline void move(size_t from, size_t to) noexcept
 			{
-				KW_ASSERT(_validate_index(from));
-				KW_ASSERT(_validate_index(to));
+				KAWA_ASSERT(_validate_index(from));
+				KAWA_ASSERT(_validate_index(to));
 
 				if (has(from))
 				{

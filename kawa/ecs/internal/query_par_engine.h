@@ -1,5 +1,5 @@
-#ifndef KW_ECS_QUERY_PAR_ENGINE
-#define	KW_ECS_QUERY_PAR_ENGINE
+#ifndef KAWA_ECS_QUERY_PAR_ENGINE
+#define	KAWA_ECS_QUERY_PAR_ENGINE
 
 #include <thread>
 #include <barrier>

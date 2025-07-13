@@ -36,7 +36,7 @@ No third-party dependencies, no linkage headaches.
 | **Type-safe**                  | `reg.emplace<Position>(e, …)`                                 | Compile-time component IDs                            |
 | **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                               | Intuitive, flexible entity matching / system building |
 | **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                           | Flexible and safe multithreading                      |
-| **Debug asserts**              | `KW_ASSERT_MSG`                                               | Catch misuse early                                    |
+| **Debug asserts**              | `KAWA_ASSERT_MSG`                                               | Catch misuse early                                    |
 | **Single-header-option**       | Single header version `single_header/registry.h`              | Drop & go                                             |
 
 ---

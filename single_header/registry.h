@@ -1,5 +1,5 @@
-#ifndef KW_CORE
-#define KW_CORE
+#ifndef KAWA_CORE
+#define KAWA_CORE
 
 #include <cstdint>
 #include <cstddef>
@@ -8,28 +8,28 @@
 
 #ifdef _MSC_VER
 #include <intrin.h>
-#define KW_DEBUG_BREAK() __debugbreak()
+#define KAWA_DEBUG_BREAK() __debugbreak()
 #elif __GNUC__ || __clang__
-#define KW_DEBUG_BREAK() __builtin_trap()
+#define KAWA_DEBUG_BREAK() __builtin_trap()
 #else
-#define KW_DEBUG_BREAK() ((void)0)
+#define KAWA_DEBUG_BREAK() ((void)0)
 #endif
 
-#define KW_ASSERT(expr) if(!(expr)) KW_DEBUG_BREAK();
+#define KAWA_ASSERT(expr) if(!(expr)) KAWA_DEBUG_BREAK();
 
-#define KW_ASSERT_MSG(expr, msg) \
+#define KAWA_ASSERT_MSG(expr, msg) \
         do { \
             if (!(expr)) { \
                 std::cout << msg << '\n'; \
-                KW_DEBUG_BREAK(); \
+                KAWA_DEBUG_BREAK(); \
             } \
         } while(0)
 
 
 #else
 
-#define KW_ASSERT(expr) ((void)0)
-#define KW_ASSERT_MSG(expr, msg) ((void)0)
+#define KAWA_ASSERT(expr) ((void)0)
+#define KAWA_ASSERT_MSG(expr, msg) ((void)0)
 
 #endif
 
@@ -48,17 +48,17 @@
 #include <type_traits>
 
 #if defined(__clang__)
-#	define KW_META_PRETTYFUNC __PRETTY_FUNCTION__
-#	define KW_META_TYPE_HAME_PREFIX "kawa::meta::type_name() [T = "
-#	define KW_META_TYPE_HAME_POSTFIX "]"
+#	define KAWA_META_PRETTYFUNC __PRETTY_FUNCTION__
+#	define KAWA_META_TYPE_NAME_PREFIX "kawa::meta::type_name() [T = "
+#	define KAWA_META_TYPE_NAME_POSTFIX "]"
 #elif defined(_MSC_VER)
-#	define KW_META_PRETTYFUNC __FUNCSIG__	
-#	define KW_META_TYPE_HAME_PREFIX "kawa::meta::type_name<"
-#	define KW_META_TYPE_HAME_POSTFIX ">(void) noexcept"
+#	define KAWA_META_PRETTYFUNC __FUNCSIG__	
+#	define KAWA_META_TYPE_NAME_PREFIX "kawa::meta::type_name<"
+#	define KAWA_META_TYPE_NAME_POSTFIX ">(void) noexcept"
 #elif defined(__GNUC__) 
-#	define KW_META_PRETTYFUNC __PRETTY_FUNCTION__
-#	define KW_META_TYPE_HAME_PREFIX "kawa::meta::type_name() [with T = "
-#	define KW_META_TYPE_HAME_POSTFIX "; std::string_view = std::basic_string_view<char>]"
+#	define KAWA_META_PRETTYFUNC __PRETTY_FUNCTION__
+#	define KAWA_META_TYPE_NAME_PREFIX "kawa::meta::type_name() [with T = "
+#	define KAWA_META_TYPE_NAME_POSTFIX "; std::string_view = std::basic_string_view<char>]"
 #else
 #	error "Function signature macro not defined for this compiler."
 #endif
@@ -74,10 +74,10 @@ namespace kawa
 
 			inline constexpr std::string_view type_name_helper(std::string_view decorated_name)
 			{
-				size_t start = decorated_name.find(KW_META_TYPE_HAME_PREFIX);
-				size_t end = decorated_name.find(KW_META_TYPE_HAME_POSTFIX);
+				size_t start = decorated_name.find(KAWA_META_TYPE_NAME_PREFIX);
+				size_t end = decorated_name.find(KAWA_META_TYPE_NAME_POSTFIX);
 
-				return decorated_name.substr(start + sizeof(KW_META_TYPE_HAME_PREFIX) - 1, end - (start + sizeof(KW_META_TYPE_HAME_PREFIX) - 1));
+				return decorated_name.substr(start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1, end - (start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1));
 			}
 
 			constexpr uint64_t fnv1a_hash(std::string_view str) noexcept
@@ -100,7 +100,7 @@ namespace kawa
 		template<typename T>
 		inline constexpr std::string_view type_name() noexcept
 		{
-			return _internal::type_name_helper(KW_META_PRETTYFUNC);
+			return _internal::type_name_helper(KAWA_META_PRETTYFUNC);
 		}
 
 		constexpr uint64_t string_hash(std::string_view str) noexcept
@@ -173,8 +173,8 @@ namespace kawa
 
 	}
 }
-#ifndef KW_META_ECS_EXT
-#define	KW_META_ECS_EXT
+#ifndef KAWA_META_ECS_EXT
+#define	KAWA_META_ECS_EXT
 
 namespace kawa
 {
@@ -264,8 +264,8 @@ namespace kawa
 	};
 }
 #endif
-#ifndef KW_ECS_POLY_STORAGE
-#define	KW_ECS_POLY_STORAGE
+#ifndef KAWA_ECS_POLY_STORAGE
+#define	KAWA_ECS_POLY_STORAGE
 
 #include <memory>
 #include <new>
@@ -360,7 +360,7 @@ namespace kawa
 								}
 								else
 								{
-									KW_ASSERT_MSG(false, std::string("trying to copy uncopyable type") + typeid(T).name());
+									KAWA_ASSERT_MSG(false, std::string("trying to copy uncopyable type") + typeid(T).name());
 								}
 							};
 
@@ -377,7 +377,7 @@ namespace kawa
 								}
 								else
 								{
-									KW_ASSERT_MSG(false, std::string("trying to move unmovable type") + typeid(T).name());
+									KAWA_ASSERT_MSG(false, std::string("trying to move unmovable type") + typeid(T).name());
 								}
 							};
 
@@ -388,7 +388,7 @@ namespace kawa
 			public:
 				inline bool has(size_t index) noexcept
 				{
-					KW_ASSERT(_validate_index(index));
+					KAWA_ASSERT(_validate_index(index));
 
 					return _mask[index];
 				}
@@ -396,7 +396,7 @@ namespace kawa
 				template<typename T, typename...Args>
 				inline T& emplace(size_t index, Args&&...args)  noexcept
 				{
-					KW_ASSERT(_validate_index(index));
+					KAWA_ASSERT(_validate_index(index));
 
 					bool& cell = _mask[index];
 					if (!cell)
@@ -422,7 +422,7 @@ namespace kawa
 				template<typename T>
 				inline T& get(size_t index) noexcept
 				{
-					KW_ASSERT(_validate_index(index));
+					KAWA_ASSERT(_validate_index(index));
 
 					return *(static_cast<T*>(_storage) + index);
 				}
@@ -430,7 +430,7 @@ namespace kawa
 				template<typename T>
 				inline T* get_if_has(size_t index) noexcept
 				{
-					KW_ASSERT(_validate_index(index));
+					KAWA_ASSERT(_validate_index(index));
 
 					if (_mask[index])
 					{
@@ -441,7 +441,7 @@ namespace kawa
 
 				inline void erase(size_t index) noexcept
 				{
-					KW_ASSERT(_validate_index(index));
+					KAWA_ASSERT(_validate_index(index));
 
 					bool& cell = _mask[index];
 					if (cell)
@@ -459,8 +459,8 @@ namespace kawa
 
 				inline void copy(size_t from, size_t to) noexcept
 				{
-					KW_ASSERT(_validate_index(from));
-					KW_ASSERT(_validate_index(to));
+					KAWA_ASSERT(_validate_index(from));
+					KAWA_ASSERT(_validate_index(to));
 
 					if (has(from))
 					{
@@ -486,8 +486,8 @@ namespace kawa
 
 				inline void move(size_t from, size_t to) noexcept
 				{
-					KW_ASSERT(_validate_index(from));
-					KW_ASSERT(_validate_index(to));
+					KAWA_ASSERT(_validate_index(from));
+					KAWA_ASSERT(_validate_index(to));
 
 					if (has(from))
 					{
@@ -544,8 +544,8 @@ namespace kawa
 	}
 }
 #endif
-#ifndef KW_ECS_QUERY_PAR_ENGINE
-#define	KW_ECS_QUERY_PAR_ENGINE
+#ifndef KAWA_ECS_QUERY_PAR_ENGINE
+#define	KAWA_ECS_QUERY_PAR_ENGINE
 
 #include <thread>
 #include <barrier>
@@ -666,10 +666,10 @@ namespace kawa
 	}
 }
 #endif
-#ifndef KW_ECS_REGISTRY
-#define KW_ECS_REGISTRY
+#ifndef KAWA_ECS_REGISTRY
+#define KAWA_ECS_REGISTRY
 
-#define KW_MAX_UNIQUE_STORAGE_COUNT 255
+#define KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT 255
 
 #ifndef KAWA_ECS_PARALLELISM
 #define KAWA_ECS_PARALLELISM (std::thread::hardware_concurrency() / 2)
@@ -690,7 +690,7 @@ namespace kawa
 			static inline storage_id get_storage_id() noexcept
 			{
 				static storage_id id = _storage_id_counter++;
-				KW_ASSERT_MSG(id < KW_MAX_UNIQUE_STORAGE_COUNT, "max amoount os storage ids reached, increase KW_MAX_UNIQUE_STORAGE_COUNT for more avaliable storage ids");
+				KAWA_ASSERT_MSG(id < KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT, "max amoount os storage ids reached, increase KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT for more avaliable storage ids");
 				return id;
 			}
 
@@ -701,8 +701,8 @@ namespace kawa
 				_capacity = capacity;
 				_real_capacity = capacity + 1;
 
-				_storage = new _internal::poly_storage[KW_MAX_UNIQUE_STORAGE_COUNT];
-				_storage_mask = new bool[KW_MAX_UNIQUE_STORAGE_COUNT]();
+				_storage = new _internal::poly_storage[KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT];
+				_storage_mask = new bool[KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT]();
 				_fetch_destroy_list = new size_t[_real_capacity];
 				_free_list = new size_t[_real_capacity]();
 				_entity_mask = new bool[_real_capacity]();
@@ -759,7 +759,7 @@ namespace kawa
 			template<typename T, typename...Args>
 			inline T& emplace(entity_id entity, Args&&...args) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				static_assert(!std::is_const_v<T>, "component can not have const qualifier");
 
@@ -781,7 +781,7 @@ namespace kawa
 			template<typename T>
 			inline void erase(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -800,7 +800,7 @@ namespace kawa
 			template<typename T>
 			inline bool has(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -822,7 +822,7 @@ namespace kawa
 			template<typename T>
 			inline T& get(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				storage_id s_id = get_storage_id<T>();
 
@@ -832,7 +832,7 @@ namespace kawa
 			template<typename T>
 			inline T* get_if_has(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -854,8 +854,8 @@ namespace kawa
 			template<typename...Args>
 			inline void copy(entity_id from, entity_id to) noexcept
 			{
-				KW_ASSERT(_validate_entity(from));
-				KW_ASSERT(_validate_entity(to));
+				KAWA_ASSERT(_validate_entity(from));
+				KAWA_ASSERT(_validate_entity(to));
 
 				if (from != to)
 				{
@@ -871,8 +871,8 @@ namespace kawa
 			template<typename...Args>
 			inline void move(entity_id from, entity_id to) noexcept
 			{
-				KW_ASSERT(_validate_entity(from));
-				KW_ASSERT(_validate_entity(to));
+				KAWA_ASSERT(_validate_entity(from));
+				KAWA_ASSERT(_validate_entity(to));
 
 				if (from != to)
 				{
@@ -888,13 +888,13 @@ namespace kawa
 
 			inline entity_id clone(entity_id from) noexcept
 			{
-				KW_ASSERT(_validate_entity(from));
+				KAWA_ASSERT(_validate_entity(from));
 
 				entity_id e = entity();
 
 				if (!e) return e;
 
-				for (storage_id s_id = 0; s_id < KW_MAX_UNIQUE_STORAGE_COUNT; s_id++)
+				for (storage_id s_id = 0; s_id < KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT; s_id++)
 				{
 					if (_storage_mask[s_id])
 					{
@@ -907,10 +907,10 @@ namespace kawa
 
 			inline void clone(entity_id from, entity_id to) noexcept
 			{
-				KW_ASSERT(_validate_entity(from));
-				KW_ASSERT(_validate_entity(to));
+				KAWA_ASSERT(_validate_entity(from));
+				KAWA_ASSERT(_validate_entity(to));
 
-				for (storage_id s_id = 0; s_id < KW_MAX_UNIQUE_STORAGE_COUNT; s_id++)
+				for (storage_id s_id = 0; s_id < KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT; s_id++)
 				{
 					if (_storage_mask[s_id])
 					{
@@ -921,7 +921,7 @@ namespace kawa
 
 			inline void destroy(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -947,7 +947,7 @@ namespace kawa
 
 			inline void fetch_destroy(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -1082,7 +1082,7 @@ namespace kawa
 			template<typename Fn, typename...Params>
 			inline void query_with(entity_id entity, Fn fn, Params&&...params) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				using query_traits = typename meta::query_traits<Fn, Params...>;
 

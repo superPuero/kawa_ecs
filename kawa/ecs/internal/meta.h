@@ -8,17 +8,17 @@
 #include <type_traits>
 
 #if defined(__clang__)
-#	define KW_META_PRETTYFUNC __PRETTY_FUNCTION__
-#	define KW_META_TYPE_HAME_PREFIX "kawa::meta::type_name() [T = "
-#	define KW_META_TYPE_HAME_POSTFIX "]"
+#	define KAWA_META_PRETTYFUNC __PRETTY_FUNCTION__
+#	define KAWA_META_TYPE_NAME_PREFIX "kawa::meta::type_name() [T = "
+#	define KAWA_META_TYPE_NAME_POSTFIX "]"
 #elif defined(_MSC_VER)
-#	define KW_META_PRETTYFUNC __FUNCSIG__	
-#	define KW_META_TYPE_HAME_PREFIX "kawa::meta::type_name<"
-#	define KW_META_TYPE_HAME_POSTFIX ">(void) noexcept"
+#	define KAWA_META_PRETTYFUNC __FUNCSIG__	
+#	define KAWA_META_TYPE_NAME_PREFIX "kawa::meta::type_name<"
+#	define KAWA_META_TYPE_NAME_POSTFIX ">(void) noexcept"
 #elif defined(__GNUC__) 
-#	define KW_META_PRETTYFUNC __PRETTY_FUNCTION__
-#	define KW_META_TYPE_HAME_PREFIX "kawa::meta::type_name() [with T = "
-#	define KW_META_TYPE_HAME_POSTFIX "; std::string_view = std::basic_string_view<char>]"
+#	define KAWA_META_PRETTYFUNC __PRETTY_FUNCTION__
+#	define KAWA_META_TYPE_NAME_PREFIX "kawa::meta::type_name() [with T = "
+#	define KAWA_META_TYPE_NAME_POSTFIX "; std::string_view = std::basic_string_view<char>]"
 #else
 #	error "Function signature macro not defined for this compiler."
 #endif
@@ -35,10 +35,10 @@ namespace kawa
 
 			inline constexpr std::string_view type_name_helper(std::string_view decorated_name)
 			{
-				size_t start = decorated_name.find(KW_META_TYPE_HAME_PREFIX);
-				size_t end = decorated_name.find(KW_META_TYPE_HAME_POSTFIX);
+				size_t start = decorated_name.find(KAWA_META_TYPE_NAME_PREFIX);
+				size_t end = decorated_name.find(KAWA_META_TYPE_NAME_POSTFIX);
 
-				return decorated_name.substr(start + sizeof(KW_META_TYPE_HAME_PREFIX) - 1, end - (start + sizeof(KW_META_TYPE_HAME_PREFIX) - 1));
+				return decorated_name.substr(start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1, end - (start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1));
 			}
 
 			constexpr uint64_t fnv1a_hash(std::string_view str) noexcept
@@ -61,7 +61,7 @@ namespace kawa
 		template<typename T>
 		inline constexpr std::string_view type_name() noexcept
 		{
-			return _internal::type_name_helper(KW_META_PRETTYFUNC);
+			return _internal::type_name_helper(KAWA_META_PRETTYFUNC);
 		}
 
 		constexpr uint64_t string_hash(std::string_view str) noexcept

@@ -1,5 +1,5 @@
-#ifndef KW_ECS_REGISTRY
-#define KW_ECS_REGISTRY
+#ifndef KAWA_ECS_REGISTRY
+#define KAWA_ECS_REGISTRY
 
 #include "internal/core.h"
 #include "internal/meta.h"
@@ -7,7 +7,7 @@
 #include "internal/poly_storage.h"
 #include "internal/query_par_engine.h"
 
-#define KW_MAX_UNIQUE_STORAGE_COUNT 255
+#define KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT 255
 
 #ifndef KAWA_ECS_PARALLELISM
 	#define KAWA_ECS_PARALLELISM (std::thread::hardware_concurrency() / 2)
@@ -28,7 +28,7 @@ namespace kawa
 			static inline storage_id get_storage_id() noexcept
 			{
 				static storage_id id = _storage_id_counter++;
-				KW_ASSERT_MSG(id < KW_MAX_UNIQUE_STORAGE_COUNT, "max amoount os storage ids reached, increase KW_MAX_UNIQUE_STORAGE_COUNT for more avaliable storage ids");
+				KAWA_ASSERT_MSG(id < KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT	, "max amoount os storage ids reached, increase KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT for more avaliable storage ids");
 				return id;
 			}
 
@@ -39,8 +39,8 @@ namespace kawa
 				_capacity = capacity;
 				_real_capacity = capacity + 1;
 
-				_storage = new _internal::poly_storage[KW_MAX_UNIQUE_STORAGE_COUNT];
-				_storage_mask = new bool[KW_MAX_UNIQUE_STORAGE_COUNT]();
+				_storage = new _internal::poly_storage[KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT];
+				_storage_mask = new bool[KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT]();
 				_fetch_destroy_list = new size_t[_real_capacity];
 				_free_list = new size_t[_real_capacity]();
 				_entity_mask = new bool[_real_capacity]();
@@ -97,7 +97,7 @@ namespace kawa
 			template<typename T, typename...Args>
 			inline T& emplace(entity_id entity, Args&&...args) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				static_assert(!std::is_const_v<T>, "component can not have const qualifier");
 
@@ -119,7 +119,7 @@ namespace kawa
 			template<typename T>
 			inline void erase(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -138,7 +138,7 @@ namespace kawa
 			template<typename T>
 			inline bool has(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -160,7 +160,7 @@ namespace kawa
 			template<typename T>
 			inline T& get(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				storage_id s_id = get_storage_id<T>();
 
@@ -170,7 +170,7 @@ namespace kawa
 			template<typename T>
 			inline T* get_if_has(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -192,8 +192,8 @@ namespace kawa
 			template<typename...Args>
 			inline void copy(entity_id from, entity_id to) noexcept
 			{
-				KW_ASSERT(_validate_entity(from));
-				KW_ASSERT(_validate_entity(to));
+				KAWA_ASSERT(_validate_entity(from));
+				KAWA_ASSERT(_validate_entity(to));
 
 				if (from != to)
 				{
@@ -209,8 +209,8 @@ namespace kawa
 			template<typename...Args>
 			inline void move(entity_id from, entity_id to) noexcept
 			{
-				KW_ASSERT(_validate_entity(from));
-				KW_ASSERT(_validate_entity(to));
+				KAWA_ASSERT(_validate_entity(from));
+				KAWA_ASSERT(_validate_entity(to));
 
 				if (from != to)
 				{
@@ -226,13 +226,13 @@ namespace kawa
 
 			inline entity_id clone(entity_id from) noexcept
 			{
-				KW_ASSERT(_validate_entity(from));
+				KAWA_ASSERT(_validate_entity(from));
 
 				entity_id e = entity();
 
 				if (!e) return e;
 
-				for (storage_id s_id = 0; s_id < KW_MAX_UNIQUE_STORAGE_COUNT; s_id++)
+				for (storage_id s_id = 0; s_id < KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT; s_id++)
 				{
 					if (_storage_mask[s_id])
 					{
@@ -245,10 +245,10 @@ namespace kawa
 
 			inline void clone(entity_id from, entity_id to) noexcept
 			{
-				KW_ASSERT(_validate_entity(from));
-				KW_ASSERT(_validate_entity(to));
+				KAWA_ASSERT(_validate_entity(from));
+				KAWA_ASSERT(_validate_entity(to));
 
-				for (storage_id s_id = 0; s_id < KW_MAX_UNIQUE_STORAGE_COUNT; s_id++)
+				for (storage_id s_id = 0; s_id < KAWA_ECS_MAX_UNIQUE_STORAGE_COUNT; s_id++)
 				{
 					if (_storage_mask[s_id])
 					{
@@ -259,7 +259,7 @@ namespace kawa
 
 			inline void destroy(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -285,7 +285,7 @@ namespace kawa
 
 			inline void fetch_destroy(entity_id entity) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				bool& entity_cell = _entity_mask[entity];
 
@@ -420,7 +420,7 @@ namespace kawa
 			template<typename Fn, typename...Params>
 			inline void query_with(entity_id entity, Fn fn, Params&&...params) noexcept
 			{
-				KW_ASSERT(_validate_entity(entity));
+				KAWA_ASSERT(_validate_entity(entity));
 
 				using query_traits = typename meta::query_traits<Fn, Params...>;
 

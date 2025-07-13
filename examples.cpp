@@ -3,7 +3,9 @@
 #define KAWA_ECS_PARALLELISM 8 // Set the number of threads for parallel queries (optional, default is half of hardware threads)
 //#define KAWA_ECS_PARALLELISM 0 // Srtting this to 0 will turn paralellism off, invocation of every "par" query will be executed exclusively on a main thread
 
-#include "kawa/ecs/registry.h"
+ #include "kawa/ecs/registry.h"
+//#include "single_header/registry.h"
+
 #include <iostream>
 #include <string>
 
