@@ -778,7 +778,7 @@ namespace kawa
 				return storage.emplace<T>(entity, std::forward<Args>(args)...);
 			}
 
-			template<typename T>
+			template<typename...Args>
 			inline void erase(entity_id entity) noexcept
 			{
 				KAWA_ASSERT(_validate_entity(entity));
@@ -787,17 +787,20 @@ namespace kawa
 
 				if (entity_cell)
 				{
-					storage_id s_id = get_storage_id<T>();
-					_internal::poly_storage* storage = (_storage + s_id);
-
-					if (_storage_mask[s_id])
+					(([this, entity]<typename T>()
 					{
-						storage->erase(entity);
-					}
+						storage_id s_id = get_storage_id<T>();
+						_internal::poly_storage* storage = (_storage + s_id);
+
+						if (_storage_mask[s_id])
+						{
+							storage->erase(entity);
+						}
+					}.template operator() < Args > ()), ...);
 				}
 			}
 
-			template<typename T>
+			template<typename...Args>
 			inline bool has(entity_id entity) noexcept
 			{
 				KAWA_ASSERT(_validate_entity(entity));
@@ -806,14 +809,17 @@ namespace kawa
 
 				if (entity_cell)
 				{
-					storage_id s_id = get_storage_id<T>();
-
-					if (_storage_mask[s_id])
+					return (([this, entity] <typename T>()
 					{
-						return _storage[s_id].has(entity);
-					}
+						storage_id s_id = get_storage_id<T>();
 
-					return false;
+						if (_storage_mask[s_id])
+						{
+							return _storage[s_id].has(entity);
+						}
+
+						return false;
+					}. template operator() < Args > ()) && ...);
 				}
 
 				return false;
@@ -859,7 +865,7 @@ namespace kawa
 
 				if (from != to)
 				{
-					(([&]<typename T>()
+					(([this, from, to]<typename T>()
 					{
 						storage_id s_id = get_storage_id<T>();
 						_storage[s_id].copy(from, to);
@@ -876,7 +882,7 @@ namespace kawa
 
 				if (from != to)
 				{
-					(([&]<typename T>()
+					(([this, from, to]<typename T>()
 					{
 						storage_id s_id = get_storage_id<T>();
 
@@ -1683,24 +1689,24 @@ namespace kawa
 			}
 
 		private:
-			_internal::poly_storage*	_storage = nullptr;
+			_internal::poly_storage* _storage = nullptr;
 
 			size_t						_capacity = 0;
 			size_t						_real_capacity = 0;
 			size_t						_occupied = 1;
 
-			bool*						_storage_mask = nullptr;
+			bool* _storage_mask = nullptr;
 
-			bool*						_entity_mask = nullptr;
+			bool* _entity_mask = nullptr;
 
-			size_t*						_entity_entries = nullptr;
-			size_t*						_r_entity_entries = nullptr;
+			size_t* _entity_entries = nullptr;
+			size_t* _r_entity_entries = nullptr;
 			size_t						_entries_counter = 0;
 
-			size_t*						_fetch_destroy_list = nullptr;
+			size_t* _fetch_destroy_list = nullptr;
 			size_t						_fetch_destroy_list_size = 0;
 
-			size_t*						_free_list = nullptr;
+			size_t* _free_list = nullptr;
 			size_t						_free_list_size = 0;
 
 			_internal::query_par_engine	_query_par_engine;

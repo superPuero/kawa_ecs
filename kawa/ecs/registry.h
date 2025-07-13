@@ -116,7 +116,7 @@ namespace kawa
 				return storage.emplace<T>(entity, std::forward<Args>(args)...);
 			}
 
-			template<typename T>
+			template<typename...Args>
 			inline void erase(entity_id entity) noexcept
 			{
 				KAWA_ASSERT(_validate_entity(entity));
@@ -125,17 +125,20 @@ namespace kawa
 
 				if (entity_cell)
 				{
-					storage_id s_id = get_storage_id<T>();
-					_internal::poly_storage* storage = (_storage + s_id);
-
-					if (_storage_mask[s_id])
+					(([this, entity]<typename T>()
 					{
-						storage->erase(entity);
-					}
+						storage_id s_id = get_storage_id<T>();
+						_internal::poly_storage* storage = (_storage + s_id);
+
+						if (_storage_mask[s_id])
+						{
+							storage->erase(entity);
+						}
+					}.template operator()<Args>()), ...);
 				}
 			}
 
-			template<typename T>
+			template<typename...Args>
 			inline bool has(entity_id entity) noexcept
 			{
 				KAWA_ASSERT(_validate_entity(entity));
@@ -144,14 +147,17 @@ namespace kawa
 
 				if (entity_cell)
 				{
-					storage_id s_id = get_storage_id<T>();
-
-					if (_storage_mask[s_id])
+					return (([this, entity] <typename T>()
 					{
-						return _storage[s_id].has(entity);
-					}
+						storage_id s_id = get_storage_id<T>();
 
-					return false;
+						if (_storage_mask[s_id])
+						{
+							return _storage[s_id].has(entity);
+						}
+
+						return false;
+					}. template operator()<Args>()) && ...);
 				}
 
 				return false;
@@ -197,7 +203,7 @@ namespace kawa
 
 				if (from != to)
 				{
-					(([&]<typename T>()
+					(([this, from, to]<typename T>()
 					{
 						storage_id s_id = get_storage_id<T>();
 						_storage[s_id].copy(from, to);
@@ -214,7 +220,7 @@ namespace kawa
 
 				if (from != to)
 				{
-					(([&]<typename T>()
+					(([this, from, to]<typename T>()
 					{
 						storage_id s_id = get_storage_id<T>();
 

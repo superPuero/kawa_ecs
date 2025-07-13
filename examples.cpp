@@ -1,10 +1,10 @@
 // ===== kawa::ecs Example Usage & Documentation =====
 
 #define KAWA_ECS_PARALLELISM 8 // Set the number of threads for parallel queries (optional, default is half of hardware threads)
-//#define KAWA_ECS_PARALLELISM 0 // Srtting this to 0 will turn paralellism off, invocation of every "par" query will be executed exclusively on a main thread
+//#define KAWA_ECS_PARALLELISM 0 // Setting this to 0 will turn paralellism off, invocation of every "par" query will be executed exclusively on a main thread
 
- #include "kawa/ecs/registry.h"
-//#include "single_header/registry.h"
+ //#include "kawa/ecs/registry.h"
+#include "single_header/registry.h"
 
 #include <iostream>
 #include <string>
@@ -52,7 +52,8 @@ int main(int argc, char** argv)
     entity_id e2 = reg.entity();
 
     // Using entity_with to streamline entity creation
-    // Move constructor implementation is strongly advised for components that will be used for streamline creation 
+    // Move constructor implementation is strongly advised for components used in entity_with 
+    // This allows components to be forwarded efficiently into the registry
     entity_id e3 = reg.entity_with
     (
         Position{ 10, 20 },
@@ -84,30 +85,51 @@ int main(int argc, char** argv)
 
     // === 5. Component Management ===
 
-    // Copy components from e1 to e4 (only Position and Velocity)
+    //
+    // Template Arity Convention
+    // 
+    // General rule:
+    //  All void methods(e.g.erase, copy, move) are variadic (can operate on more than one component type at the time).
+    //
+    //  All methods that return values are not variadic, with one exception:
+    //  has<Ts...>() is variadic, returns true only if the entity has all listed component types
+    //
+
+    // Copy components from e1 to e4
     reg.copy<Position, Velocity>(e1, e4);
 
     // Move components from e2 to e4, leveraging move-semantics (will erase them from e2)
-    reg.move<Label>(e2, e4);
+    reg.move<Label, Velocity>(e2, e4);
 
-    reg.erase<Label>(e4);
-    bool has = reg.has<Label>(e3);
+    // Erase components from e4 (destructor invocation)
+    reg.erase<Label, Velocity>(e4);
+
+    // Check, does e3 has specific components
+    bool has = reg.has<Position, Velocity>(e3);
 
     // Clone all components from an entity to a new one
-    // No need to specify component types — clone works via internal dynamic dispatch.
+    // No need to specify component types
     entity_id e5 = reg.clone(e3);
 
     // Clone all components from e3 into e4 (overwrites e4's components if they exist)
     reg.clone(e3, e4);
 
-    // === 6. Querying semantics ===
+    // === 6. Queries ===
+    // 
+    // kawa::ecs::query is the primary mechanism for iterating over entities that match a specific component signature.
+    // It automatically filters entities based on the components required by your function signature and calls your function with direct access to those components
+    // This allows for fast, expressive, and safe logic application across only the relevant subset of entities—no manual filtering or casting needed.
+    // 
+    // However, queries must follow a strict convention known as querying semanticss:
+    //
+    // === Querying semantics ===
     // kawa::ecs query supports function signatures of the form:
     //   [fall-through -> required -> optional]
     // 
-    // The argument groups must appear in this strict order:
+    // The argument groups of function that is passed for querying must appear in this strict order:
     //  1. Fall-through group (can be any value, may be reference or pointer)
     //  2. Required group (T& or T ...) (references in case of T&, copies in case of T)
-    //  3. Optional group (T* ...) (populated with pointer component if exsists, nullptr is does not)
+    //  3. Optional group (T* ...) (populated with pointer to component if it exists, nullptr if it does not)
     //
     // !!! You may NOT reorder or mix between groups.
     // !!! Each group can be any size (including empty).
@@ -215,7 +237,7 @@ int main(int argc, char** argv)
     // query_par behaves like `query`, but divides the work between multiple threads.
     // It's ideal for parallel updates, physics steps, AI, or any independent per-entity work.
     //
-    // Default ammout of threads allocated for is half of the hardware threads.
+    // Default amount of threads allocated for is half of the hardware threads.
     // Currently you can change this by setting `KAWA_ECS_PARALLELISM` macro before including the header.
     // 
     // Signature and semantics identical to `query`
