@@ -44,7 +44,7 @@ No third-party dependencies, no linkage headaches.
 ## 🛠️ Quick Start
 
 ```cpp
-#include "registry.h"
+#include "kwecs.h"
 
 #include <string>
 
