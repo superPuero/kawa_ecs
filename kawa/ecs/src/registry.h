@@ -1,6 +1,8 @@
 #ifndef KAWA_ECS_REGISTRY
 #define KAWA_ECS_REGISTRY
 
+#include <array>
+
 #include "internal/core.h"
 #include "internal/meta.h"
 #include "internal/meta_ecs_ext.h"
@@ -20,7 +22,7 @@ namespace kawa
 		typedef size_t entity_id;
 		typedef size_t storage_id;
 
-		constexpr inline entity_id nullent = 0;
+		constexpr static inline entity_id nullent = 0;
 
 		class registry
 		{
@@ -61,24 +63,26 @@ namespace kawa
 
 			inline entity_id entity() noexcept
 			{
+				entity_id id;
 				if (_free_list_size)
 				{
-					entity_id id = _free_list[--_free_list_size];
-					_entity_mask[id] = true;
-
-					return id;
+					id = _free_list[--_free_list_size];
 				}
-
-				if (_occupied >= _real_capacity)
+				else
 				{
-					return nullent;
+					if (_occupied >= _real_capacity)
+					{
+						return nullent;
+					}
+					id = _occupied++;
 				}
 
-				entity_id id = _occupied++;
 				_entity_mask[id] = true;
 
-				_entity_entries[_entries_counter++] = id;
+				_entity_entries[_entries_counter] = id;
 				_r_entity_entries[id] = _entries_counter;
+
+				_entries_counter++;
 
 				return id;
 			}
@@ -109,7 +113,7 @@ namespace kawa
 
 				if (!storage_cell)
 				{
-					storage.populate<T>(_real_capacity);
+					storage.template populate<T>(_real_capacity);
 					storage_cell = true;
 				}
 
@@ -485,30 +489,29 @@ namespace kawa
 				constexpr size_t req_count = sizeof...(req_idxs);
 				constexpr size_t opt_count = sizeof...(opt_idxs);
 
-				if constexpr (req_count && opt_count)
+				std::array<storage_id, req_count> require_storage_keys = 
 				{
-					storage_id require_storage_keys[req_count] =
-					{
 						get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-					};
+				};
 
-					if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-					{
-						return;
-					}
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
 
-					storage_id opt_storage_keys[opt_count] =
-					{
-						get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-					};
+				std::array<storage_id, opt_count> optional_storage_keys =
+				{
+						get_storage_id<std::tuple_element_t<opt_idxs, opt_tuple>>()...,
+				};
 
+				std::array<_internal::poly_storage*, req_count> require_storages = { &_storage[require_storage_keys[req_idxs]]... };
+				std::array<_internal::poly_storage*, opt_count> optional_storages = { (_storage_mask[optional_storage_keys[opt_idxs]] ? &_storage[optional_storage_keys[opt_idxs]] : _storage[optional_storage_keys[opt_idxs]].template populate<std::tuple_element_t<opt_idxs, opt_tuple>>(_real_capacity))... };
 
-					_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
-					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+				if constexpr (require_storages.size())
+				{
+					_internal::poly_storage* smallest = require_storages[0];
 
-					_internal::poly_storage* smallest = req_storages[0];
-
-					for (_internal::poly_storage* st : req_storages)
+					for (_internal::poly_storage* st : require_storages)
 					{
 						if (st->_occupied < smallest->_occupied)
 						{
@@ -519,62 +522,31 @@ namespace kawa
 					for (size_t i = 0; i < smallest->_occupied; i++)
 					{
 						entity_id e = smallest->_connector[i];
-						if ((req_storages[req_idxs]->has(e) && ...))
+						if ((require_storages[req_idxs]->has(e) && ...))
 						{
-							fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+							fn
+							(
+								std::forward<Params>(params)...,
+								require_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...,
+								optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+							);
 						}
 					}
 				}
-
-				else if constexpr (!req_count)
-				{
-					storage_id opt_storage_keys[opt_count] =
-					{
-						get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-					};
-
-					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
-
+				
+				else
+				{						
 					for (size_t i = 0; i < _entries_counter; i++)
 					{
 						entity_id e = _entity_entries[i];
-						fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+						fn
+						(
+							std::forward<Params>(params)..., 
+							optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+						);
 					}
 				}
-				else
-				{
-					storage_id require_storage_keys[req_count] =
-					{
-						get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-					};
-
-
-					if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-					{
-						return;
-					}
-
-					_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
-
-					_internal::poly_storage* smallest = req_storages[0];
-
-					for (_internal::poly_storage* st : req_storages)
-					{
-						if (st->_occupied < smallest->_occupied)
-						{
-							smallest = st;
-						}
-					}
-
-					for (size_t i = 0; i < smallest->_occupied; i++)
-					{
-						entity_id e = smallest->_connector[i];
-						if ((req_storages[req_idxs]->has(e) && ...))
-						{
-							fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
-						}
-					}
-				}
+				
 			}
 
 
@@ -584,33 +556,32 @@ namespace kawa
 				constexpr size_t req_count = sizeof...(req_idxs);
 				constexpr size_t opt_count = sizeof...(opt_idxs);
 
-				if constexpr (req_count && opt_count)
+				std::array<storage_id, req_count> require_storage_keys =
 				{
-					storage_id require_storage_keys[req_count] =
-					{
 						get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-					};
+				};
 
-					if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-					{
-						return;
-					}
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
 
-					storage_id opt_storage_keys[opt_count] =
-					{
-						get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-					};
+				std::array<storage_id, opt_count> optional_storage_keys =
+				{
+						get_storage_id<std::tuple_element_t<opt_idxs, opt_tuple>>()...,
+				};
 
+				std::array<_internal::poly_storage*, req_count> require_storages = { &_storage[require_storage_keys[req_idxs]]... };
+				std::array<_internal::poly_storage*, opt_count> optional_storages = { (_storage_mask[optional_storage_keys[opt_idxs]] ? &_storage[optional_storage_keys[opt_idxs]] : _storage[optional_storage_keys[opt_idxs]].template populate<std::tuple_element_t<opt_idxs, opt_tuple>>(_real_capacity))... };
 
-					_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
-					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+				if constexpr (require_storages.size())
+				{
+					_internal::poly_storage* smallest = require_storages[0];
 
-					_internal::poly_storage* smallest = req_storages[0];
-
-					for (_internal::poly_storage* st : req_storages)
+					for (_internal::poly_storage* st : require_storages)
 					{
 						if (st->_occupied < smallest->_occupied)
-						{
+						{																																										  
 							smallest = st;
 						}
 					}
@@ -622,9 +593,14 @@ namespace kawa
 							for (size_t i = start; i < end; ++i)
 							{
 								entity_id e = smallest->_connector[i];
-								if ((req_storages[req_idxs]->has(e) && ...))
+								if ((require_storages[req_idxs]->has(e) && ...))
 								{
-									fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+									fn
+									(
+										std::forward<Params>(params)...,
+										require_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...,
+										optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+									);
 								}
 							}
 						}
@@ -632,15 +608,8 @@ namespace kawa
 					);
 				}
 
-				else if constexpr (!req_count)
+				else
 				{
-					storage_id opt_storage_keys[opt_count] =
-					{
-						get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-					};
-
-					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
-
 					_query_par_engine.query
 					(
 						[&](size_t start, size_t end)
@@ -648,55 +617,16 @@ namespace kawa
 							for (size_t i = start; i < end; ++i)
 							{
 								entity_id e = _entity_entries[i];
-								fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+								fn
+								(
+									std::forward<Params>(params)...,
+									optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+								);
 							}
 						}
 						, _entries_counter
 					);
-
 				}
-				else
-				{
-					storage_id require_storage_keys[req_count] =
-					{
-						get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-					};
-
-
-					if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-					{
-						return;
-					}
-
-					_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
-
-					_internal::poly_storage* smallest = req_storages[0];
-
-					for (_internal::poly_storage* st : req_storages)
-					{
-						if (st->_occupied < smallest->_occupied)
-						{
-							smallest = st;
-						}
-					}
-
-					_query_par_engine.query
-					(
-						[&](size_t start, size_t end)
-						{
-							for (size_t i = start; i < end; ++i)
-							{
-								entity_id e = smallest->_connector[i];
-								if ((req_storages[req_idxs]->has(e) && ...))
-								{
-									fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
-								}
-							}
-						}
-						, smallest->_occupied
-					);
-				}
-
 			}
 
 			template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params>
@@ -705,29 +635,29 @@ namespace kawa
 				constexpr size_t req_count = sizeof...(req_idxs);
 				constexpr size_t opt_count = sizeof...(opt_idxs);
 
-				if constexpr (req_count && opt_count)
+				std::array<storage_id, req_count> require_storage_keys =
 				{
-					storage_id require_storage_keys[req_count] =
-					{
 						get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-					};
+				};
 
-					if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-					{
-						return;
-					}
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
 
-					storage_id opt_storage_keys[opt_count] =
-					{
-						get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-					};
+				std::array<storage_id, opt_count> optional_storage_keys =
+				{
+						get_storage_id<std::tuple_element_t<opt_idxs, opt_tuple>>()...,
+				};
 
-					_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
-					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+				std::array<_internal::poly_storage*, req_count> require_storages = { &_storage[require_storage_keys[req_idxs]]... };
+				std::array<_internal::poly_storage*, opt_count> optional_storages = { (_storage_mask[optional_storage_keys[opt_idxs]] ? &_storage[optional_storage_keys[opt_idxs]] : _storage[optional_storage_keys[opt_idxs]].template populate<std::tuple_element_t<opt_idxs, opt_tuple>>(_real_capacity))... };
 
-					_internal::poly_storage* smallest = req_storages[0];
+				if constexpr (require_storages.size())
+				{
+					_internal::poly_storage* smallest = require_storages[0];
 
-					for (_internal::poly_storage* st : req_storages)
+					for (_internal::poly_storage* st : require_storages)
 					{
 						if (st->_occupied < smallest->_occupied)
 						{
@@ -738,59 +668,27 @@ namespace kawa
 					for (size_t i = 0; i < smallest->_occupied; i++)
 					{
 						entity_id e = smallest->_connector[i];
-						if ((req_storages[req_idxs]->has(e) && ...))
-						{
-							fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
-						}
+						fn
+						(
+							e,
+							std::forward<Params>(params)...,
+							require_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...,
+							optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+						);
 					}
 				}
 
-				else if constexpr (!req_count)
+				else
 				{
-					storage_id opt_storage_keys[opt_count] =
-					{
-						get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-					};
-
-					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
-
 					for (size_t i = 0; i < _entries_counter; i++)
 					{
 						entity_id e = _entity_entries[i];
-						fn(e, std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
-					}
-				}
-				else
-				{
-					storage_id require_storage_keys[req_count] =
-					{
-						get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-					};
-
-					if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-					{
-						return;
-					}
-
-					_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
-
-					_internal::poly_storage* smallest = req_storages[0];
-
-					for (_internal::poly_storage* st : req_storages)
-					{
-						if (st->_occupied < smallest->_occupied)
-						{
-							smallest = st;
-						}
-					}
-
-					for (size_t i = 0; i < smallest->_occupied; i++)
-					{
-						entity_id e = smallest->_connector[i];
-						if ((req_storages[req_idxs]->has(e) && ...))
-						{
-							fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
-						}
+						fn
+						(
+							e,
+							std::forward<Params>(params)...,
+							optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+						);
 					}
 				}
 
@@ -802,30 +700,29 @@ namespace kawa
 				constexpr size_t req_count = sizeof...(req_idxs);
 				constexpr size_t opt_count = sizeof...(opt_idxs);
 
-				if constexpr (req_count && opt_count)
+				std::array<storage_id, req_count> require_storage_keys =
 				{
-					storage_id require_storage_keys[req_count] =
-					{
 						get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-					};
+				};
 
-					if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-					{
-						return;
-					}
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
 
-					storage_id opt_storage_keys[opt_count] =
-					{
-						get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-					};
+				std::array<storage_id, opt_count> optional_storage_keys =
+				{
+						get_storage_id<std::tuple_element_t<opt_idxs, opt_tuple>>()...,
+				};
 
+				std::array<_internal::poly_storage*, req_count> require_storages = { &_storage[require_storage_keys[req_idxs]]... };
+				std::array<_internal::poly_storage*, opt_count> optional_storages = { (_storage_mask[optional_storage_keys[opt_idxs]] ? &_storage[optional_storage_keys[opt_idxs]] : _storage[optional_storage_keys[opt_idxs]].template populate<std::tuple_element_t<opt_idxs, opt_tuple>>(_real_capacity))... };
 
-					_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
-					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+				if constexpr (require_storages.size())
+				{
+					_internal::poly_storage* smallest = require_storages[0];
 
-					_internal::poly_storage* smallest = req_storages[0];
-
-					for (_internal::poly_storage* st : req_storages)
+					for (_internal::poly_storage* st : require_storages)
 					{
 						if (st->_occupied < smallest->_occupied)
 						{
@@ -840,9 +737,15 @@ namespace kawa
 							for (size_t i = start; i < end; ++i)
 							{
 								entity_id e = smallest->_connector[i];
-								if ((req_storages[req_idxs]->has(e) && ...))
+								if ((require_storages[req_idxs]->has(e) && ...))
 								{
-									fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+									fn
+									(
+										e,
+										std::forward<Params>(params)...,
+										require_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...,
+										optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+									);
 								}
 							}
 						}
@@ -850,15 +753,8 @@ namespace kawa
 					);
 				}
 
-				else if constexpr (!req_count)
+				else
 				{
-					storage_id opt_storage_keys[opt_count] =
-					{
-						get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-					};
-
-					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
-
 					_query_par_engine.query
 					(
 						[&](size_t start, size_t end)
@@ -866,87 +762,50 @@ namespace kawa
 							for (size_t i = start; i < end; ++i)
 							{
 								entity_id e = _entity_entries[i];
-								fn(e, std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(e) : nullptr)...);
+								fn
+								(
+									e,
+									std::forward<Params>(params)...,
+									optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+								);
 							}
 						}
 						, _entries_counter
 					);
-
 				}
-				else
-				{
-					storage_id require_storage_keys[req_count] =
-					{
-						get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-					};
-
-
-					if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-					{
-						return;
-					}
-
-					_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
-
-					_internal::poly_storage* smallest = req_storages[0];
-
-					for (_internal::poly_storage* st : req_storages)
-					{
-						if (st->_occupied < smallest->_occupied)
-						{
-							smallest = st;
-						}
-					}
-
-					_query_par_engine.query
-					(
-						[&](size_t start, size_t end)
-						{
-							for (size_t i = start; i < end; ++i)
-							{
-								entity_id e = smallest->_connector[i];
-								if ((req_storages[req_idxs]->has(e) && ...))
-								{
-									fn(e, std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...);
-								}
-							}
-						}
-						, smallest->_occupied
-					);
-				}
-
 			}
 
 
 			template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params>
 			inline void _query_with_impl(entity_id entity, Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 			{
+
 				constexpr size_t req_count = sizeof...(req_idxs);
 				constexpr size_t opt_count = sizeof...(opt_idxs);
 
-				if constexpr (req_count && opt_count)
+				std::array<storage_id, req_count> require_storage_keys =
 				{
-					storage_id require_storage_keys[req_count] =
-					{
 						get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-					};
+				};
 
-					if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-					{
-						return;
-					}
+				if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
+				{
+					return;
+				}
 
-					storage_id opt_storage_keys[opt_count] =
-					{
-						get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-					};
+				std::array<storage_id, opt_count> optional_storage_keys =
+				{
+						get_storage_id<std::tuple_element_t<opt_idxs, opt_tuple>>()...,
+				};
 
-					_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
-					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
+				std::array<_internal::poly_storage*, req_count> require_storages = { &_storage[require_storage_keys[req_idxs]]... };
+				std::array<_internal::poly_storage*, opt_count> optional_storages = { (_storage_mask[optional_storage_keys[opt_idxs]] ? &_storage[optional_storage_keys[opt_idxs]] : _storage[optional_storage_keys[opt_idxs]].template populate<std::tuple_element_t<opt_idxs, opt_tuple>>(_real_capacity))... };
 
-					_internal::poly_storage* smallest = req_storages[0];
+				if constexpr (require_storages.size())
+				{
+					_internal::poly_storage* smallest = require_storages[0];
 
-					for (_internal::poly_storage* st : req_storages)
+					for (_internal::poly_storage* st : require_storages)
 					{
 						if (st->_occupied < smallest->_occupied)
 						{
@@ -954,59 +813,24 @@ namespace kawa
 						}
 					}
 
-					if (smallest->has(entity))
+					if ((require_storages[req_idxs]->has(entity) && ...))
 					{
-						if ((req_storages[req_idxs]->has(entity) && ...))
-						{
-							fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(entity)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(entity) : nullptr)...);
-						}
+						fn
+						(
+							std::forward<Params>(params)...,
+							require_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(entity)...,
+							optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(entity)...
+						);
 					}
-				}
-
-				else if constexpr (!req_count)
-				{
-					storage_id opt_storage_keys[opt_count] =
-					{
-						get_storage_id<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>()...,
-					};
-
-					_internal::poly_storage* opt_storages[opt_count] = { (_storage_mask[opt_storage_keys[opt_idxs]] ? &_storage[opt_storage_keys[opt_idxs]] : nullptr)... };
-
-					fn(std::forward<Params>(params)..., (opt_storages[opt_idxs] ? opt_storages[opt_idxs]->template get_if_has<std::remove_pointer_t<std::tuple_element_t<opt_idxs, opt_tuple>>>(entity) : nullptr)...);
-
 				}
 				else
 				{
-					storage_id require_storage_keys[req_count] =
-					{
-						get_storage_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-					};
-
-					if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-					{
-						return;
-					}
-
-					_internal::poly_storage* req_storages[req_count] = { &_storage[require_storage_keys[req_idxs]]... };
-
-					_internal::poly_storage* smallest = req_storages[0];
-
-					for (_internal::poly_storage* st : req_storages)
-					{
-						if (st->_occupied < smallest->_occupied)
-						{
-							smallest = st;
-						}
-					}
-
-					if (smallest->has(entity))
-					{
-						if ((req_storages[req_idxs]->has(entity) && ...))
-						{
-							fn(std::forward<Params>(params)..., req_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(entity)...);
-						}
-					}
-				}
+					fn
+					(
+						std::forward<Params>(params)...,
+						optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(entity)...
+					);
+				}				
 			}
 
 		private:

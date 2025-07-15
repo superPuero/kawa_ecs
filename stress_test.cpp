@@ -2,8 +2,8 @@
 #include <chrono>
 #include <atomic>
 
- //#include "kawa/ecs/registry.h"
-#include "single_header/registry.h"
+ //#include "kawa/ecs/kwecs.h"        
+#include "single_header/kwecs.h"
 
 using namespace kawa::ecs;
 
@@ -31,9 +31,27 @@ double benchmark(const std::string& name, Fn&& fn)
     return ms;
 }
 
+template <typename Fn>
+double benchmark(const std::string& name, Fn&& fn, size_t count)
+{
+    double total = 0.0;
+    for(size_t i = 0; i < count; i++)
+    { 
+        using clock = std::chrono::high_resolution_clock;
+        auto start = clock::now();
+        fn();
+        auto end = clock::now();
+        double ms = std::chrono::duration<double, std::milli>(end - start).count();
+        total += ms;
+    }
+	
+    double avg = total / count;
+    std::cout << "[ " << name << " ]: " << count  << " runs avg. time: " << avg << " ms\n";
+    return avg;
+}
+
 int main()
 {   
-{
     registry reg(ENTITY_COUNT);
     std::vector<entity_id> entities;
     entities.reserve(ENTITY_COUNT);
@@ -134,6 +152,26 @@ int main()
         }
     );
 
+    size_t counter = 0;
+    benchmark
+    (
+        "Fallthrough + optional AI",
+        [&]()
+        {
+            int tick = 42;
+            reg.query_self
+            (
+                [&](entity_id, int tick, AI* ai)
+                {
+                    if (ai) counter++;
+                }
+                , tick
+            );
+        }
+        , 1000 
+    );
+    std::cout << counter << '\n';
+
     // Move is erasing, so it will erase most of Score and Velocity in this use case, uncomment for benchmark
     //benchmark
     //(
@@ -163,8 +201,10 @@ int main()
                 }
             );
         }
+        , 1000
     );
 
+   
     benchmark
     (
         "Parallel Vec3 + Velocity + optional Score",
@@ -444,6 +484,20 @@ int main()
     );
     benchmark
     (
+        "Query: Vec3 Only",
+        [&]()
+        {
+            reg.query(
+                [](Vec3& pos)
+                {
+                    pos.x += 1.0f;
+                }
+            );
+        }
+    );
+
+    benchmark
+    (
         "Query Self: Vec3 Only",
         [&]()
         {
@@ -518,7 +572,6 @@ int main()
     );
     
     std::cin.get();
-}
-    std::cin.get();
-
+    
+    
 }

@@ -66,7 +66,8 @@ namespace kawa
 			using require_args_tuple = typename sub_tuple<0, std::tuple_size_v<no_params_args_tuple> -opt_args_count>::template of<no_params_args_tuple>;
 			static constexpr size_t require_args_count = std::tuple_size_v<require_args_tuple>;
 
-			using opt_args_tuple = typename sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
+			using dirty_opt_args_tuple = sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
+			using opt_args_tuple = transform_each_t<dirty_opt_args_tuple, std::remove_pointer_t>;
 		};
 
 		template<typename Fn, typename...Params>
@@ -86,7 +87,9 @@ namespace kawa
 			using require_args_tuple = sub_tuple<0, std::tuple_size_v<no_params_args_tuple> - opt_args_count>::template of<no_params_args_tuple>;
 			static constexpr size_t require_args_count = std::tuple_size_v<require_args_tuple>;
 
-			using opt_args_tuple = sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
+			using dirty_opt_args_tuple = sub_tuple<std::tuple_size_v<no_params_args_tuple> -opt_args_count, std::tuple_size_v<no_params_args_tuple>>::template of<no_params_args_tuple>;
+			using opt_args_tuple = transform_each_t<dirty_opt_args_tuple, std::remove_pointer_t>;
+
 		};
 	};
 }

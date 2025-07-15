@@ -22,7 +22,7 @@ namespace ecs
 			using move_fn_t = void(*)(void*, size_t, size_t);
 
 		public:
-			inline poly_storage() noexcept = default;
+			inline constexpr poly_storage() noexcept = default;
 			inline ~poly_storage() noexcept
 			{
 				if (_populated)
@@ -45,7 +45,7 @@ namespace ecs
 
 		public:
 			template<typename T>
-			inline void populate(size_t capacity) noexcept
+			inline poly_storage* populate(size_t capacity) noexcept
 			{
 				if (!_populated)
 				{
@@ -118,10 +118,12 @@ namespace ecs
 
 
 					_populated = true;
+
 				}
+				return this;
 			}
 		public:
-			inline bool has(size_t index) noexcept
+			inline bool has(size_t index) const noexcept
 			{
 				KAWA_ASSERT(_validate_index(index));
 
@@ -129,7 +131,7 @@ namespace ecs
 			}
 
 			template<typename T, typename...Args>
-			inline T& emplace(size_t index, Args&&...args)  noexcept
+			inline T& emplace(size_t index, Args&&...args) noexcept
 			{
 				KAWA_ASSERT(_validate_index(index));
 
@@ -155,7 +157,7 @@ namespace ecs
 			}
 
 			template<typename T>
-			inline T& get(size_t index) noexcept
+			inline T& get(size_t index) const  noexcept
 			{
 				KAWA_ASSERT(_validate_index(index));
 
@@ -163,10 +165,10 @@ namespace ecs
 			}
 
 			template<typename T>
-			inline T* get_if_has(size_t index) noexcept
+			inline T* get_if_has(size_t index) const noexcept
 			{
 				KAWA_ASSERT(_validate_index(index));
-
+					
 				if (_mask[index])
 				{
 					return static_cast<T*>(_storage) + index;
@@ -248,7 +250,7 @@ namespace ecs
 				}
 			}
 
-			inline bool _validate_index(size_t id) noexcept
+			inline bool _validate_index(size_t id) const noexcept
 			{
 				if (id >= _capacity)
 				{
@@ -274,7 +276,6 @@ namespace ecs
 			bool			_populated = false;
 
 		};
-
 	}
 }
 }

@@ -3,8 +3,8 @@
 #define KAWA_ECS_PARALLELISM 8 // Set the number of threads for parallel queries (optional, default is half of hardware threads)
 //#define KAWA_ECS_PARALLELISM 0 // Setting this to 0 will turn paralellism off, invocation of every "par" query will be executed exclusively on a main thread
 
- //#include "kawa/ecs/registry.h"
-#include "single_header/registry.h"
+ #include "kawa/ecs/kwecs.h"
+//#include "single_header/kwecs.h"
 
 #include <iostream>
 #include <string>
@@ -170,7 +170,7 @@ int main(int argc, char** argv)
     // Required (Position& pos, Velocity& vel)
     // Optional (Label* label)
     reg.query
-    (
+    (                                     
         [](float dt, Position& pos, Velocity& vel, Label* label)
         {
             pos.x += vel.x * dt;
