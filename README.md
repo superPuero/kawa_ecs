@@ -13,14 +13,14 @@
 ## 🏗️ Building & Using
 
 **1. Single-header** 
-1. Copy **`single_header/registry.h`** into your include path.  
+1. Copy **`single_header/kwecs.h`** into your include path.  
 2. `#include "registry.h"`  
 3. Compile with **C++20**  
 4. Profit!
 
 **2. Organized source** 
 1. Copy **`kawa`** directory into your include path.  
-2. `#include "kawa/ecs/registry.h"`  
+2. `#include "kawa/ecs/kwecs.h"`  
 3. Compile with **C++20**  
 4. Profit!
 
