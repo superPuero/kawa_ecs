@@ -13,13 +13,13 @@ It provides a minimal and expressive interface for managing entities, components
 1. Copy `single_header/kwecs.h` into your include path  
 2. `#include "registry.h"`  
 3. Compile with **C++20**  
-4. Done
+4. Profit!
 
 ### 🔹 2. Organized source
 1. Copy the `kawa/` directory into your include path  
 2. `#include "kawa/ecs/kwecs.h"`  
 3. Compile with **C++20**  
-4. Done
+4. Done!
 
 ✅ No third-party dependencies. No linkage headaches.
 
