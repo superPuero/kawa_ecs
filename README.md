@@ -14,7 +14,7 @@
 
 **1. Single-header** 
 1. Copy **`single_header/kwecs.h`** into your include path.  
-2. `#include "registry.h"`  
+2. `#include "kwecs.h"`  
 3. Compile with **C++20**  
 4. Profit!
 
