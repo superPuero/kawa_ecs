@@ -40,7 +40,7 @@ It provides a minimal and expressive interface for managing entities, components
 ## 🛠️ Quick Start
 
 ```cpp
-#include "registry.h"
+#include "kwecs.h"
 
 #include <string>
 
