@@ -56,10 +56,9 @@ namespace kawa
 
 			using dirty_args_tuple = typename function_traits<Fn>::args_tuple;
 			using args_tuple = transform_each_t<dirty_args_tuple, std::remove_cvref_t>;
-
 			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
 
-			using no_params_args_tuple = typename sub_tuple<params_count, std::tuple_size_v<args_tuple>>::template of<args_tuple>;
+			using no_params_args_tuple = sub_tuple<params_count, args_count>::template of<args_tuple>;
 
 			static constexpr size_t opt_args_count = get_ptr_type_count<no_params_args_tuple>::value;
 
@@ -77,10 +76,9 @@ namespace kawa
 
 			using dirty_args_tuple = typename function_traits<Fn>::args_tuple;
 			using args_tuple = transform_each_t<dirty_args_tuple, std::remove_cvref_t>;
-
 			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
 
-			using no_params_args_tuple = sub_tuple<params_count, std::tuple_size_v<args_tuple>>::template of<args_tuple>;
+			using no_params_args_tuple = sub_tuple<params_count, args_count>::template of<args_tuple>;
 
 			static constexpr size_t opt_args_count = get_ptr_type_count<no_params_args_tuple>::value;
 

@@ -17,22 +17,11 @@ struct Transform { Transform(const float* src) { std::copy(src, src + 16, matrix
 struct AI { int state; };
 struct Enemy {};
 
-constexpr size_t ENTITY_COUNT = 100'000;
+constexpr size_t ENTITY_COUNT = 1'000'000;
+constexpr size_t BENCH_COUNT = 100;
 
 template <typename Fn>
-double benchmark(const std::string& name, Fn&& fn)
-{
-    using clock = std::chrono::high_resolution_clock;
-    auto start = clock::now();
-    fn();
-    auto end = clock::now();
-    double ms = std::chrono::duration<double, std::milli>(end - start).count();
-    std::cout << "[ " << name << " ]: " << ms << " ms\n";
-    return ms;
-}
-
-template <typename Fn>
-double benchmark(const std::string& name, Fn&& fn, size_t count)
+double benchmark(const std::string& name, Fn&& fn, size_t count = BENCH_COUNT)
 {
     double total = 0.0;
     for(size_t i = 0; i < count; i++)
@@ -52,11 +41,17 @@ double benchmark(const std::string& name, Fn&& fn, size_t count)
 
 int main()
 {   
-    registry reg(ENTITY_COUNT);
+    registry_specification spec;
+    spec.max_entity_count = ENTITY_COUNT;
+	spec.debug_name = "registry::stress_test";
+    spec.thread_count = 8;
+    spec.max_component_types = 64;
+
+    registry reg(spec);
     std::vector<entity_id> entities;
     entities.reserve(ENTITY_COUNT);
 
-    std::cout << "kawa::ecs::registry will use " << KAWA_ECS_PARALLELISM << " threads for parallel queries" << '\n';
+    std::cout << "kawa::ecs::registry will use " << spec.thread_count << " threads for parallel queries" << '\n';
     std::cout << '\n';
 
     benchmark
@@ -66,7 +61,8 @@ int main()
         {
             for (size_t i = 0; i < ENTITY_COUNT; ++i)
                 entities.push_back(reg.entity());
-        }
+        }, 1
+
     );
 
     benchmark
@@ -80,7 +76,7 @@ int main()
                 reg.emplace<Score>(id, 10.0f);
                 reg.emplace<Flags>(id, 0xFF);
             }
-        }
+        }, 1
     );
 
 
@@ -94,7 +90,7 @@ int main()
                 reg.emplace<Health>(entities[i], 100);
                 reg.emplace<AI>(entities[i], 1);
             }
-        }
+        }, 1
     );
 
     benchmark
@@ -106,7 +102,7 @@ int main()
             {
                 reg.emplace<Tag>(entities[i], "Agent_" + std::to_string(i));
             }
-        }
+        }, 1
     );
 
     benchmark
@@ -119,7 +115,7 @@ int main()
                 float mat[32] = {};
                 reg.emplace<Transform>(entities[i], mat);
             }
-        }
+        }, 1
     );
 
     benchmark
@@ -131,7 +127,7 @@ int main()
             {
                 reg.emplace<Enemy>(entities[i]);
             }
-        }
+        }, 1
     );
 
 
@@ -149,15 +145,15 @@ int main()
                     reg.copy<Vec3, Health>(src, dst);
                 }
             }
-        }
+        }, 1
     );
 
-    size_t counter = 0;
     benchmark
     (
         "Fallthrough + optional AI",
         [&]()
         {
+            volatile size_t counter = 0;
             int tick = 42;
             reg.query_self
             (
@@ -168,10 +164,7 @@ int main()
                 , tick
             );
         }
-        , 1000 
     );
-    std::cout << counter << '\n';
-
     // Move is erasing, so it will erase most of Score and Velocity in this use case, uncomment for benchmark
     //benchmark
     //(
@@ -201,7 +194,6 @@ int main()
                 }
             );
         }
-        , 1000
     );
 
    
@@ -297,7 +289,7 @@ int main()
         "Optional Health Only",
         [&]()
         {
-            size_t count = 0;
+            volatile size_t count = 0;
             reg.query
             (
                 [&](Health* hp)
@@ -305,7 +297,6 @@ int main()
                     if (hp) count++;
                 }
             );
-            std::cout << "Entities with Health: " << count << "\n";
         }
     );
 
@@ -322,7 +313,6 @@ int main()
                     if (hp) count++;
                 }
             );
-            std::cout << "Entities with Health: " << count << "\n";
         }
     );
 
@@ -403,7 +393,7 @@ int main()
         "Query Entities with Flag",
         [&]()
         {
-            size_t count = 0;
+            volatile size_t count = 0;
             reg.query
             (
                 [&](Enemy&, Vec3& pos)
@@ -412,7 +402,6 @@ int main()
                     ++count;
                 }
             );
-            std::cout << "Entities with Enemy flag: " << count << '\n';
         }
     );
 
@@ -430,7 +419,6 @@ int main()
                     ++count;
                 }
             );
-            std::cout << "Entities with Enemy flag: " << count << '\n';
         }
     );
 
@@ -440,7 +428,7 @@ int main()
         "Purely Optional Query",
         [&]()
         {
-            size_t count = 0;
+            volatile size_t count = 0;
             reg.query
             (
                 [&](Vec3* p, Velocity* v, Health* h, Tag* t)
@@ -448,7 +436,6 @@ int main()
                     if (p && h) ++count;
                 }
             );
-            std::cout << "Mixed presence count: " << count << '\n';
         }
     );
 
@@ -465,7 +452,6 @@ int main()
                     if (p && h) count.fetch_add(1);
                 }
             );
-            std::cout << "Mixed presence count: " << count << '\n';
         }
     );
 
@@ -533,14 +519,13 @@ int main()
         "Query Self: Optional Health",
         [&]()
         {
-            size_t count = 0;
+            volatile size_t count = 0;
             reg.query_self(
                 [&](entity_id id, Health* hp)
                 {
                     if (hp) count++;
                 }
             );
-            std::cout << "Query Self - Entities with Health: " << count << "\n";
         }
     );
 
@@ -548,16 +533,15 @@ int main()
     (
         "Fallthrough (ref) + Vec3 + Health", [&]()
         {
-            size_t total = 0;
+            volatile size_t total = 0;
             reg.query
             (
-                [](size_t& sum, Vec3& pos, Health* hp)
+                [](volatile size_t& sum, Vec3& pos, Health* hp)
                 {
                     if (hp) sum += hp->hp;
                 }
                 , total
             );
-            std::cout << "Total HP: " << total << '\n';
         }
     );
 

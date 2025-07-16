@@ -1,8 +1,5 @@
 // ===== kawa::ecs Example Usage & Documentation =====
 
-#define KAWA_ECS_PARALLELISM 8 // Set the number of threads for parallel queries (optional, default is half of hardware threads)
-//#define KAWA_ECS_PARALLELISM 0 // Setting this to 0 will turn paralellism off, invocation of every "par" query will be executed exclusively on a main thread
-
  #include "kawa/ecs/kwecs.h"
 //#include "single_header/kwecs.h"
 
@@ -45,15 +42,20 @@ int main(int argc, char** argv)
     using namespace kawa::ecs;
 
     // === 1. Constructing the Registry ===
-    registry reg(256);  // Provide max amount of entities upfront
+    registry reg
+    ({
+        .max_entity_count = 255,            // Maximum number of entities the registry can work with
+        .max_component_types = 64,          // Maximum number of unique component types
+        .thread_count = 8,                  // Number of threads for query_par (0 = disable, default = half hardware threads)
+        .debug_name = "example::registry"   // Debug name, improves assertion/debug output
+    });
 
     // === 2. Creating Entities ===
     entity_id e1 = reg.entity();
     entity_id e2 = reg.entity();
 
-    // Using entity_with to streamline entity creation
+    // Use entity_with to streamline entity creation
     // Move constructor implementation is strongly advised for components used in entity_with 
-    // This allows components to be forwarded efficiently into the registry
     entity_id e3 = reg.entity_with
     (
         Position{ 10, 20 },
@@ -64,7 +66,7 @@ int main(int argc, char** argv)
     entity_id e4 = reg.entity();
 
     // Check entity validity
-    if (e1 == nullent || !e1)
+    if (e1 == nullent || !reg.is_valid(e1))
     {
         std::cout << "Invalid entity!" << '\n';
     }
@@ -76,7 +78,7 @@ int main(int argc, char** argv)
     reg.emplace<Velocity>(e1, 2.0f, 3.0f);
     reg.emplace<Velocity>(e2, 2.0f, 4.0f);
 
-    reg.emplace<Label>(e1, "Dude");
+    //reg.emplace<Label>(e1, "Dude");
     reg.emplace<Label>(e2, "Foo");
 
     // === 4. Accessing Components ===
@@ -123,7 +125,7 @@ int main(int argc, char** argv)
     // However, queries must follow a strict convention known as querying semanticss:
     //
     // === Querying semantics ===
-    // kawa::ecs query supports function signatures of the form:
+    // kawa::ecs::query supports function signatures of the form:
     //   [fall-through -> required -> optional]
     // 
     // The argument groups of function that is passed for querying must appear in this strict order:
@@ -202,10 +204,10 @@ int main(int argc, char** argv)
     // must be `entity_id`, allowing users to directly access the entity being iterated.
     // 
     // IMPORTANT:
-    // Do NOT call `reg.destroy(id)` directly in query function body, there are two possible solutions to this problem
+    // Do NOT call `kawa::ecs::destroy(id)` directly in query function body, there are two possible solutions to this problem
 	// 1. (more idiomatic) collect entities during query yourself and schedule destroying.
-    // 2. (easier) use special `reg.fetch_destroy(id)` to offload collecting and destroying entities inside queries to registry.
-    // 
+    // 2. (easier) use special `kawa::ecs::fetch_destroy(id)` to offload collecting and destroying entities inside queries to registry.
+    //
     // Signature:
     //     [](entity_id id, fallthrough..., required..., optional...)
 
@@ -240,12 +242,16 @@ int main(int argc, char** argv)
     // Default amount of threads allocated for is half of the hardware threads.
     // Currently you can change this by setting `KAWA_ECS_PARALLELISM` macro before including the header.
     // 
+    // IMPORTANT:
+    // Do NOT call `kawa::ecs::query_par()` inside another kawa::ecs::query_par() body
+    // 
     // Signature and semantics identical to `query`
 
     reg.query_par
     (
-        [](Position& pos, Velocity& vel)
+        [&](Position& pos, Velocity& vel)
         {
+			//reg.query_par([](Position& p) {std::cout << p.x; }); // Forbidden
             pos.x += vel.x;
             pos.y += vel.y;
         }

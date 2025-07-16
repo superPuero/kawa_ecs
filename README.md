@@ -1,94 +1,92 @@
-#  **kawa::ecs**
+# 🧩 kawa::ecs
 
-![language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)  
+![language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
 
----
-
-> This is entity component system that focuses on **raw speed, near-zero dynamic allocations**, and a  
-> *minimal, modern* API. Drop the header into any C++20 project and get an industrial-strength  
-> data-oriented backbone for games, simulations, or large-scale AI worlds.
+**kawa::ecs** is a *lightweight, parallel-friendly C++ Entity-Component System* designed for clarity, speed, and simplicity.  
+It provides a minimal and expressive interface for managing entities, components, and systems — optimized for both single-threaded and multithreaded workloads.
 
 ---
 
-## 🏗️ Building & Using
+## ⚙️ Building & Integration
 
-**1. Single-header** 
-1. Copy **`single_header/kwecs.h`** into your include path.  
+### 🔹 1. Single-header
+1. Copy `single_header/kwecs.h` into your include path  
 2. `#include "registry.h"`  
 3. Compile with **C++20**  
-4. Profit!
+4. Done
 
-**2. Organized source** 
-1. Copy **`kawa`** directory into your include path.  
+### 🔹 2. Organized source
+1. Copy the `kawa/` directory into your include path  
 2. `#include "kawa/ecs/kwecs.h"`  
 3. Compile with **C++20**  
-4. Profit!
+4. Done
 
-No third-party dependencies, no linkage headaches.
+✅ No third-party dependencies. No linkage headaches.
 
 ---
 
-## ✨ Features
+## ⚡ Features
 
-| 🚀                             | What                                                          | Details                                               |
-| ------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------|
-| **Ultra-fast**                 | Designed for maximum performance while remaining simple       | Cache-friendly storage, mindful optimizations         |
-| **Type-safe**                  | `reg.emplace<Position>(e, …)`                                 | Compile-time component IDs                            |
-| **Functional queries**         | `reg.query([](Pos&, Vel&){…});`                               | Intuitive, flexible entity matching / system building |
-| **Parallel queries**           | `reg.query_par([](Pos&, Vel&){…});`                           | Flexible and safe multithreading                      |
-| **Debug asserts**              | `KAWA_ASSERT_MSG`                                               | Catch misuse early                                    |
-| **Single-header-option**       | Single header version `single_header/registry.h`              | Drop & go                                             |
+| Feature                    | Description                                                            |
+|---------------------------|-------------------------------------------------------------------------|
+| **Fast**                  | Cache-friendly design with performance-focused internals                |
+| **Functional queries**    | Intuitive entity matching with strong query semantics *read more below* |
+| **Parallel queries**      | Natively parallel via `query_par(...)`                                  |
+| **Debug-friendly**        | Rich assertions with `KAWA_ASSERT_MSG`                                  |
+| **Single-header**         | Drop in version with `single_header/registry.h`                         |
 
 ---
 
 ## 🛠️ Quick Start
 
 ```cpp
-#include "registry.h"
-
+#include "kawa/ecs/kwecs.h"
+#include <iostream>
 #include <string>
-
-using namespace kawa::ecs;
 
 struct Position { float x, y; };
 struct Velocity { float x, y; };
-struct Name { std::string name; };
+struct Label    { std::string name; };
 
-int main()
-{
-    registry reg(512);
+void update_position(float dt, Position& pos, Velocity& vel) {
+    pos.x += vel.x * dt;
+    pos.y += vel.y * dt;
+}
+
+int main() {
+    using namespace kawa::ecs;
+
+    registry reg({
+        .max_entity_count = 255,
+        .max_component_types = 64,
+        .thread_count = 8,
+        .debug_name = "example::registry"
+    });
 
     entity_id e1 = reg.entity();
-    reg.emplace<Position>(e1, 0.f, 0.f);
-    reg.emplace<Velocity>(e1, 1.f, 2.f);
+    reg.emplace<Position>(e1, 12.4f, 34.6f);
+    reg.emplace<Velocity>(e1, 2.0f, 3.0f);
 
-    entity_id e2 = reg.entity_with
-    (
+    entity_id e2 = reg.entity_with(
         Position{ 10, 20 },
         Velocity{ 1, 1 },
-        Name{ "Bar" } // Move constructor is strongly advised 
+        Label{ "Ichigo" }
     );
 
-    // Simple query
-    reg.query
-    (
-        [](Position& p, Name* n)
-        {
-            std::cout << (n ? n->name : "unnamed") << " is at " << p.x << " " << p.y << '\n';
-        }
-    );
+    // Query with optional component
+    reg.query([](Position& pos, Label* label) {
+        std::cout << (label ? label->name : "unnamed") << " is at (" << pos.x << ", " << pos.y << ")\n";
+    });
 
-    float delta_time = 0.16;
-    // Parallel query (multi-threaded)
-    reg.query_par
-    (
-        [](float dt, Position& p, Velocity& v)
-        {
-            p.x += v.x * dt;
-            p.y += v.y * dt;
-        }
-        , delta_time
-    );
+    // Update using fall-through argument
+    float dt = 0.16f;
+    reg.query(update_position, dt);
+
+    // Parallel update
+    reg.query_par([](Position& pos, Velocity& vel) {
+        pos.x += vel.x;
+        pos.y += vel.y;
+    });
 
     return 0;
 }
@@ -101,7 +99,7 @@ int main()
 
 | Call                                 | Purpose                                              |
 | ------------------------------------ | ---------------------------------------------------- |
-| `registry(size_t max_entities)`      | Construct registry                                   |
+| `registry(reg_specs)`                | Construct registry                                   |
 | `entity()`                           | Create new entity or return `nullent`                |
 | `entity_with<Ts...>(Ts{}...)`        | Streamline entity and components creation            |
 | `emplace<T>(id, args…)`              | Construct component `T` on entity with args          |
@@ -168,10 +166,10 @@ reg.query([](Position& pos, Label* opt, Velocity& vel)); // ❌ optional must co
 > **query_par** and **query_self_par** execute the query in *parallel*.
 
 > By default, they use half of hardware threads.
-
-> You can configure thread count by defining the macro `KAWA_ECS_PARALLELISM` before including registry.h.
+                                            
+> You can configure thread count by changing thread_count parameter while constructing registry, set it to 0 to turn off paralellism
 
 ---
 
-> Made with love.  
+> Made with care.  
 > If you use `kawa::ecs` in something cool, let me know!
