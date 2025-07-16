@@ -40,8 +40,8 @@ It provides a minimal and expressive interface for managing entities, components
 ## 🛠️ Quick Start
 
 ```cpp
-#include "kawa/ecs/kwecs.h"
-#include <iostream>
+#include "registry.h"
+
 #include <string>
 
 struct Position { float x, y; };
