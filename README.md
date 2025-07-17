@@ -13,13 +13,13 @@ It provides a minimal and expressive interface for managing entities, components
 1. Copy `single_header/kwecs.h` into your include path  
 2. `#include "registry.h"`  
 3. Compile with **C++20**  
-4. Done
+4. Profit!
 
 ### 🔹 2. Organized source
 1. Copy the `kawa/` directory into your include path  
 2. `#include "kawa/ecs/kwecs.h"`  
 3. Compile with **C++20**  
-4. Done
+4. Done!
 
 ✅ No third-party dependencies. No linkage headaches.
 
@@ -40,7 +40,7 @@ It provides a minimal and expressive interface for managing entities, components
 ## 🛠️ Quick Start
 
 ```cpp
-#include "registry.h"
+#include "kwecs.h"
 
 #include <string>
 
@@ -163,11 +163,9 @@ reg.query([](Position& pos, Label* opt, Velocity& vel)); // ❌ optional must co
 ---
 
 ### 🧵 Parallel Queries
-> **query_par** and **query_self_par** execute the query in *parallel*.
-
-> By default, they use half of hardware threads.
-                                            
-> You can configure thread count by changing thread_count parameter while constructing registry, set it to 0 to turn off paralellism
+**query_par** and **query_self_par** execute the query in *parallel*.
+By default, they use half of hardware threads.
+You can configure thread count by changing thread_count parameter while constructing registry, set it to 0 to turn off paralellism
 
 ---
 
