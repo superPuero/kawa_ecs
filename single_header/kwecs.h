@@ -860,6 +860,12 @@ namespace kawa
 				delete[] _fetch_destroy_list;
 			}
 
+		public:
+			inline const registry_specification& get_specs() const
+			{
+				return _spec;
+			}
+
 			inline entity_id entity() noexcept
 			{
 				return _entity_manager.get_new();

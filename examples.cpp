@@ -1,7 +1,7 @@
 // ===== kawa::ecs Example Usage & Documentation =====
 
- #include "kawa/ecs/kwecs.h"
-//#include "single_header/kwecs.h"
+ //#include "kawa/ecs/kwecs.h"
+#include "single_header/kwecs.h"
 
 #include <iostream>
 #include <string>

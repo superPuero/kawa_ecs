@@ -41,17 +41,18 @@ double benchmark(const std::string& name, Fn&& fn, size_t count = BENCH_COUNT)
 
 int main()
 {   
-    registry_specification spec;
-    spec.max_entity_count = ENTITY_COUNT;
-	spec.debug_name = "registry::stress_test";
-    spec.thread_count = 8;
-    spec.max_component_types = 64;
+    registry reg
+    ({
+        .max_entity_count = ENTITY_COUNT,
+        .max_component_types = 64,
+        .thread_count = 8,     
+        .debug_name = "registry::stress_test",
+    });
 
-    registry reg(spec);
     std::vector<entity_id> entities;
     entities.reserve(ENTITY_COUNT);
 
-    std::cout << "kawa::ecs::registry will use " << spec.thread_count << " threads for parallel queries" << '\n';
+    std::cout << "kawa::ecs::registry will use " << reg.get_specs().thread_count << " threads for parallel queries" << '\n';
     std::cout << '\n';
 
     benchmark
