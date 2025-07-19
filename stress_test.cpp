@@ -7,18 +7,18 @@
 
 using namespace kawa::ecs;
 
-struct Vec3 { float x, y, z; };
+struct Vec3 { Vec3(float x, float y, float z) {}; Vec3(const Vec3& other) = default; float x, y, z; };
 struct Velocity { float x, y, z; };
 struct Health { int hp; };
 struct Score { float value; };
 struct Flags { uint32_t mask; };
 struct Tag { std::string label; };
-struct Transform { Transform(const float* src) { std::copy(src, src + 16, matrix); } float matrix[32]; };
+struct Transform { float matrix[32] = { 0 }; };
 struct AI { int state; };
 struct Enemy {};
 
 constexpr size_t ENTITY_COUNT = 1'000'000;
-constexpr size_t BENCH_COUNT = 100;
+constexpr size_t BENCH_COUNT = 1000;
 
 template <typename Fn>
 double benchmark(const std::string& name, Fn&& fn, size_t count = BENCH_COUNT)
@@ -35,7 +35,8 @@ double benchmark(const std::string& name, Fn&& fn, size_t count = BENCH_COUNT)
     }
 	
     double avg = total / count;
-    std::cout << "[ " << name << " ]: " << count  << " runs avg. time: " << avg << " ms\n";
+    std::cout << "[ " << name << " ]: " << count  << " runs avg. time: " << avg << " ms,  " << 1000.0f/avg<< " fps\n";
+
     return avg;
 }
 
@@ -73,9 +74,8 @@ int main()
             for (entity_id id : entities)
             {
                 reg.emplace<Vec3>(id, 1.0f, 2.0f, 3.0f);
-                reg.emplace<Velocity>(id, 0.1f, 0.2f, 0.3f);
-                reg.emplace<Score>(id, 10.0f);
                 reg.emplace<Flags>(id, 0xFF);
+                reg.emplace<Velocity>(id, 0.1f, 0.2f, 0.3f);
             }
         }, 1
     );
@@ -89,6 +89,7 @@ int main()
             for (size_t i = 0; i < ENTITY_COUNT; i += 2)
             {
                 reg.emplace<Health>(entities[i], 100);
+                reg.emplace<Score>(entities[i], 10.0f);
                 reg.emplace<AI>(entities[i], 1);
             }
         }, 1
@@ -113,8 +114,7 @@ int main()
         {
             for (size_t i = 0; i < ENTITY_COUNT; i += 4)
             {
-                float mat[32] = {};
-                reg.emplace<Transform>(entities[i], mat);
+                reg.emplace<Transform>(entities[i]);
             }
         }, 1
     );
@@ -131,24 +131,6 @@ int main()
         }, 1
     );
 
-
-    benchmark
-    (
-        "Copy Components: Vec3 + Health (50%)",
-        [&]()
-        {
-            for (size_t i = 0; i < ENTITY_COUNT; i += 2)
-            {
-                if (i + 1 < ENTITY_COUNT)
-                {
-                    entity_id src = entities[i];
-                    entity_id dst = entities[i + 1];
-                    reg.copy<Vec3, Health>(src, dst);
-                }
-            }
-        }, 1
-    );
-
     benchmark
     (
         "Fallthrough + optional AI",
@@ -156,9 +138,9 @@ int main()
         {
             volatile size_t counter = 0;
             int tick = 42;
-            reg.query_self
+            reg.query
             (
-                [&](entity_id, int tick, AI* ai)
+                [&](int tick, AI* ai)
                 {
                     if (ai) counter++;
                 }
@@ -166,6 +148,7 @@ int main()
             );
         }
     );
+
     // Move is erasing, so it will erase most of Score and Velocity in this use case, uncomment for benchmark
     //benchmark
     //(
@@ -181,6 +164,8 @@ int main()
     //    }
     //);
 
+    //reg.query([](int&, float*, char&) {});
+
     benchmark
     (
         "Vec3 + Velocity + optional Score",
@@ -188,7 +173,7 @@ int main()
         {
             reg.query
             (
-                [](Vec3& pos, Velocity& vel, Score* score)
+                [](Vec3& pos, Score* score, const Velocity& vel)
                 {
                     pos.x += vel.x;
                     if (score) pos.y += score->value;
@@ -197,7 +182,9 @@ int main()
         }
     );
 
-   
+
+#if 1
+    
     benchmark
     (
         "Parallel Vec3 + Velocity + optional Score",
@@ -556,7 +543,8 @@ int main()
         }
     );
     
-    std::cin.get();
-    
+#endif
+
+    std::cin.get();    
     
 }

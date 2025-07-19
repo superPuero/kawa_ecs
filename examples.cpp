@@ -1,281 +1,194 @@
-// ===== kawa::ecs Example Usage & Documentation =====
+// ===== kawa::ecs Rich Example Usage & API Documentation =====
 
- //#include "kawa/ecs/kwecs.h"
-#include "single_header/kwecs.h"
-
+#include "kawa/ecs/kwecs.h"
+//#include "single_header/kwecs.h"
 #include <iostream>
 #include <string>
+#include <vector>
 
-// User defined components
-struct Position
-{
-    float x;
-    float y;
-};
+// === 1. User-defined components ===
+struct Position { float x, y; };
+struct Velocity { float x, y; };
+struct Label { std::string name; };
+struct Health { int hp; };
 
-struct Velocity
+// === 2. Define Functions for Queries ===
+void print_label(Label* label) 
 {
-    float x;
-    float y;
-};
-
-struct Label
-{
-    std::string name;
-};
-
-// Sample functions used for queries
-void display_labels(Label& label)
-{
-    std::cout << label.name << '\n';
+    if (label)
+    {
+        std::cout << "Entity Label: " << label->name << '\n';
+    }
+    else
+    {
+        std::cout << "Unnamed entity" << '\n';
+    }
 }
 
-// Example with fall-through argument (delta_time)
-void update_position(float dt, Position& pos, Velocity& vel)
+void update_movement(float dt, Position& pos, const Velocity& vel)
 {
     pos.x += vel.x * dt;
     pos.y += vel.y * dt;
 }
 
-int main(int argc, char** argv)
+int main() 
 {
+// === 3. kawa::ecs ===
     using namespace kawa::ecs;
 
-    // === 1. Constructing the Registry ===
+    // === 3.1. Initialize Registry ===
     registry reg
     ({
-        .max_entity_count = 255,            // Maximum number of entities the registry can work with
-        .max_component_types = 64,          // Maximum number of unique component types
-        .thread_count = 8,                  // Number of threads for query_par (0 = disable, default = half hardware threads)
-        .debug_name = "example::registry"   // Debug name, improves assertion/debug output
+        .max_entity_count = 1024,
+        .max_component_types = 64,
+        .thread_count = 8,
+        .debug_name = "demo::ecs_registry"
     });
 
-    // === 2. Creating Entities ===
-    entity_id e1 = reg.entity();
-    entity_id e2 = reg.entity();
+    // === 3.2. Create Entities ===
+    entity_id dummy = reg.entity();
 
-    // Use entity_with to streamline entity creation
-    // Move constructor implementation is strongly advised for components used in entity_with 
-    entity_id e3 = reg.entity_with
-    (
-        Position{ 10, 20 },
-        Velocity{ 1, 1 },
-        Label{ "Ichigo" }
-    );
+   // === 3.3. Emplace Components ===
+    reg.emplace<Label>(dummy, "Dummy");
+    reg.emplace<Health>(dummy, 20);
 
-    entity_id e4 = reg.entity();
+    // Streamlined creation, move constructor is strongly advised
+    entity_id player = reg.entity_with(Position{ 0, 0 }, Velocity{ 1, 1 }, Label{ "Player" }, Health{ 100 });
+    entity_id enemy = reg.entity_with(Position{ 10, 5 }, Velocity{ -0.5f, 0 }, Label{ "Enemy" }, Health{ 50 });
 
-    // Check entity validity
-    if (e1 == nullent || !reg.is_valid(e1))
+
+    // === 3.4. Accessing Components ===
+    if (Label* label = reg.get_if_has<Label>(dummy)) 
     {
-        std::cout << "Invalid entity!" << '\n';
+        std::cout << "Dummy has label: " << label->name << '\n';
     }
 
-    // === 3. Adding Components ===
-    reg.emplace<Position>(e1, 12.4f, 34.6f);
-    reg.emplace<Position>(e2, 21.8f, 43.2f);
+    Health& health = reg.get<Health>(player);
+	std::cout << "Player has " << health.hp << " HP.\n";
 
-    reg.emplace<Velocity>(e1, 2.0f, 3.0f);
-    reg.emplace<Velocity>(e2, 2.0f, 4.0f);
+    // === 3.5. Component Checks ===
+    if (reg.has<Position, Velocity>(player)) 
+    {
+        std::cout << "Player is movable.\n";
+    }
 
-    //reg.emplace<Label>(e1, "Dude");
-    reg.emplace<Label>(e2, "Foo");
+    // === 3.6. Component Copy / Move / Erase ===
+    entity_id ghost = reg.entity();
+    reg.copy<Position, Label>(player, ghost);
+    reg.move<Health>(enemy, ghost);
+    reg.erase<Velocity>(ghost);
 
-    // === 4. Accessing Components ===
-    Position& pos_e1 = reg.get<Position>(e1);  // Required (must exist)
-    Label* label_e2 = reg.get_if_has<Label>(e2); // Optional (may be nullptr)
+    // === 3.7. Cloning ===
+    entity_id clone = reg.clone(enemy);
+    reg.clone(player, dummy); // Overwrites dummy's components
 
-    // === 5. Component Management ===
+    // === 3.8. Queries ===
 
-    //
-    // Template Arity Convention
-    // 
-    // General rule:
-    //  All void methods(e.g.erase, copy, move) are variadic (can operate on more than one component type at the time).
-    //
-    //  All methods that return values are not variadic, with one exception:
-    //  has<Ts...>() is variadic, returns true only if the entity has all listed component types
-    //
+    float dt = 0.16f;
 
-    // Copy components from e1 to e4
-    reg.copy<Position, Velocity>(e1, e4);
-
-    // Move components from e2 to e4, leveraging move-semantics (will erase them from e2)
-    reg.move<Label, Velocity>(e2, e4);
-
-    // Erase components from e4 (destructor invocation)
-    reg.erase<Label, Velocity>(e4);
-
-    // Check, does e3 has specific components
-    bool has = reg.has<Position, Velocity>(e3);
-
-    // Clone all components from an entity to a new one
-    // No need to specify component types
-    entity_id e5 = reg.clone(e3);
-
-    // Clone all components from e3 into e4 (overwrites e4's components if they exist)
-    reg.clone(e3, e4);
-
-    // === 6. Queries ===
-    // 
-    // kawa::ecs::query is the primary mechanism for iterating over entities that match a specific component signature.
-    // It automatically filters entities based on the components required by your function signature and calls your function with direct access to those components
-    // This allows for fast, expressive, and safe logic application across only the relevant subset of entities—no manual filtering or casting needed.
-    // 
-    // However, queries must follow a strict convention known as querying semanticss:
-    //
-    // === Querying semantics ===
-    // kawa::ecs::query supports function signatures of the form:
-    //   [fall-through -> required -> optional]
-    // 
-    // The argument groups of function that is passed for querying must appear in this strict order:
-    //  1. Fall-through group (can be any value, may be reference or pointer)
-    //  2. Required group (T& or T ...) (references in case of T&, copies in case of T)
-    //  3. Optional group (T* ...) (populated with pointer to component if it exists, nullptr if it does not)
-    //
-    // !!! You may NOT reorder or mix between groups.
-    // !!! Each group can be any size (including empty).
-    //
-    // Valid:
-    //     (float dt, Position& pos, Velocity& vel)
-    //     (Position& pos, Label* optLabel)
-    //
-    // Invalid:
-    //     (Position& pos, float dt), dt   // !!! fall-through must be first
-    //     (Position& pos, Label* opt, Velocity& vel) // !!! optional can't be in the middle
-
-    // Non-capturing lambda query
+    // Simple query with required components
     reg.query
     (
-        [](Label& label)
-        {
-            std::cout << label.name << '\n';
-        }
-    );
-
-    // Plain function query
-    reg.query(display_labels);
-
-    float delta_time = 0.16f;
-
-    // Capturing lambda query
-    reg.query
-    (
-        [&](Position& pos, Velocity& vel)
-        {
-            pos.x += vel.x * delta_time;
-            pos.y += vel.y * delta_time;
-        }
-    );
-
-    // Fall-through (float dt)
-    // Required (Position& pos, Velocity& vel)
-    // Optional (Label* label)
-    reg.query
-    (                                     
-        [](float dt, Position& pos, Velocity& vel, Label* label)
-        {
-            pos.x += vel.x * dt;
-            pos.y += vel.y * dt;
-            std::cout << "Updated Position for : "
-                << (label ? label->name : "-") << '\n';
-        }
-        , delta_time
-    );
-
-    // Fall-through with plain function
-    reg.query(update_position, delta_time);
-
-    // Fall-through reference
-    float sum_pos_x = 0;
-    reg.query
-    (
-        [](float& accm, Position& pos, Velocity& vel)
-        {
-            accm += pos.x;
-            std::cout << "Sum x is " << accm << " now" << '\n';
-        }
-        , sum_pos_x
-    );
-
-    // === 6.1. Self Querying ===
-    //
-    // query_self differs from `query` in that the **first parameter** of the callback
-    // must be `entity_id`, allowing users to directly access the entity being iterated.
-    // 
-    // IMPORTANT:
-    // Do NOT call `kawa::ecs::destroy(id)` directly in query function body, there are two possible solutions to this problem
-	// 1. (more idiomatic) collect entities during query yourself and schedule destroying.
-    // 2. (easier) use special `kawa::ecs::fetch_destroy(id)` to offload collecting and destroying entities inside queries to registry.
-    //
-    // Signature:
-    //     [](entity_id id, fallthrough..., required..., optional...)
-
-    reg.query_self
-    (
-        [](entity_id id, Position& pos, Velocity& vel)
+        [](Position& pos, Velocity& vel)
         {
             pos.x += vel.x;
             pos.y += vel.y;
-            std::cout << "Entity " << id << " moved to (" << pos.x << ", " << pos.y << ")\n";
         }
     );
 
-    reg.query_self
+    // Query with optional component
+    reg.query
     (
-        [&](entity_id id, Label& label)
+        [](Position& pos, Label* label) 
         {
-            if (label.name == "Dude")
-            {
-                std::cout << "Scheduling delete for entity: " << id << '\n';
-				reg.fetch_destroy(id); // Collect entities for destruction
-            }
-        }       
-    // Accumulated entities will be destroyed right before query exits.
+            std::cout << (label ? label->name : "Unnamed") << " is at (" << pos.x << ", " << pos.y << ")\n";
+        }
     );
 
-    // === 6.2. Parallel Querying ===
-    //
-    // query_par behaves like `query`, but divides the work between multiple threads.
-    // It's ideal for parallel updates, physics steps, AI, or any independent per-entity work.
-    //
-    // Default amount of threads allocated for is half of the hardware threads.
-    // Currently you can change this by setting `KAWA_ECS_PARALLELISM` macro before including the header.
-    // 
-    // IMPORTANT:
-    // Do NOT call `kawa::ecs::query_par()` inside another kawa::ecs::query_par() body
-    // 
-    // Signature and semantics identical to `query`
+    // Mixed required and optional + fallthrough
+    reg.query
+    (
+        [](float delta, Position& pos, Label* label, Velocity& vel) 
+        {
+            pos.x += vel.x * delta;
+            pos.y += vel.y * delta;
+            std::cout << (label ? label->name : "[No Label]") << " moved.\n";
+		}, dt // <- passing fallthrough parameter after function, in order that they are in function signature
+    );
 
+    // Query with external function
+    reg.query(print_label);
+
+    // Query with external function + fallthrough
+    reg.query(update_movement, dt);
+
+    // Query with accumulator (fallthrough reference)
+    float total_health = 0;
+    reg.query
+    (
+        [](float& acc, Health& h) 
+        {
+            acc += h.hp;
+        }, total_health
+    );
+    std::cout << "Total health in system: " << total_health << '\n';
+
+    // === 3.9. Self Queries ===
+	// Same as query, but populates the entity ID as the first parameter
+    reg.query_self
+    (
+        [](entity_id id, Label& label, Health* hp) 
+        {
+            std::cout << "Entity " << id << " named " << label.name;
+            if (hp) std::cout << " has " << hp->hp << " HP";
+            std::cout << '\n';
+        }
+    );
+
+    // Self query with conditional destroy
+    reg.query_self([&](entity_id id, Health& hp) {
+        if (hp.hp <= 0) {
+            std::cout << "Entity " << id << " is dead. Scheduling destroy.\n";
+            reg.fetch_destroy(id);
+        }
+        });
+
+    // === 3.10. Parallel Queries ===
+	// Same as query, but runs in parallel using multiple threads.
+	// Specify ammount of threads to use in kawa::ecs::registry constructor, set it to 0 to turn off parallelism.
     reg.query_par
     (
-        [&](Position& pos, Velocity& vel)
+        [](Position& pos, const Velocity& vel) 
         {
-			//reg.query_par([](Position& p) {std::cout << p.x; }); // Forbidden
             pos.x += vel.x;
             pos.y += vel.y;
         }
     );
 
-    // "Self" par alternative
     reg.query_self_par
     (
-        [](entity_id i, Position& pos, Velocity& vel)
+        [](entity_id id, Position& pos) 
         {
-            pos.x += vel.x;
-            pos.y += vel.y;
-
-            // CAUTION: Cout is not synchronized
-            std::cout << i << '\n';
+            std::cout << "Parallel Entity: " << id << " at (" << pos.x << ", " << pos.y << ")\n";
         }
     );
 
-    // === 6.3 Single-entity Query ===
-    // First parameter is entity to which query will be applied
-    reg.query_with(e3, update_position, delta_time);
+    // === 3.11. Single-Entity Query ===
+    reg.query_with
+    (   
+		player, // <- First parameter if entity upon which query will be executed
+        [](Position& pos, Velocity& vel) 
+        {
+            pos.x += vel.x * 0.5f;
+            pos.y += vel.y * 0.5f;
+        }
+    );
 
-    // === 7. Destroying an Entity ===
-    reg.destroy(e3);
+    // === 3.12. Entity Destruction ===
+    reg.destroy(clone);
+    reg.destroy(dummy);
+
+    std::cout << "Demo complete.\n";
 
     std::cin.get();
 

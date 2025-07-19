@@ -15,7 +15,6 @@
 #define KAWA_ASSUME(x) ((void)0)
 #endif
 
-#ifdef _DEBUG																			
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -25,6 +24,18 @@
 #else
 #define KAWA_DEBUG_BREAK() std::terminate() 
 #endif
+
+#define KAWA_VERIFY(expr) if(!(expr)) KAWA_DEBUG_BREAK();
+
+#define KAWA_VERIFY_MSG(expr, ...) \
+        do { \
+            if (!(expr)) { \
+                std::cout << std::format(__VA_ARGS__) << '\n'; \
+                KAWA_DEBUG_BREAK(); \
+            } \
+        } while(0)
+
+#ifdef _DEBUG	
 
 #define KAWA_ASSERT(expr) if(!(expr)) KAWA_DEBUG_BREAK();
 

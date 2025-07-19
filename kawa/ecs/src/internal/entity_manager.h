@@ -111,7 +111,7 @@ public:
 		return _entity_entries + _occupied;
 	}
 
-	inline entity_id get_occupied() noexcept
+	inline entity_id occupied() noexcept
 	{
 		return _occupied;
 	}

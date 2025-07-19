@@ -34,9 +34,9 @@ namespace ecs
 		{
 			_spec = reg_spec;
 
-			_storage			= new _internal::poly_storage[_spec.max_component_types];
+			_storage			= new poly_storage[_spec.max_component_types];
 			_storage_mask		= new bool[_spec.max_component_types]();
-			_fetch_destroy_list = new size_t[_spec.max_entity_count];
+			_fetch_destroy_list = new entity_id[_spec.max_entity_count];
 		}
 
 		inline ~registry() noexcept
@@ -47,7 +47,7 @@ namespace ecs
 		}
 
 	public:
-		inline const registry_specification& get_specs() const
+		inline const registry_specification& get_specs() const noexcept
 		{
 			return _spec;
 		}
@@ -56,7 +56,6 @@ namespace ecs
 		{			
 			return _entity_manager.get_new();
 		}
-
 
 		template<typename...Args>
 		inline entity_id entity_with(Args&&...args) noexcept
@@ -79,7 +78,7 @@ namespace ecs
 
 			bool& storage_cell = _storage_mask[s_id];
 
-			_internal::poly_storage& storage = _storage[s_id];
+			poly_storage& storage = _storage[s_id];
 
 			if (!storage_cell)
 			{
@@ -100,7 +99,7 @@ namespace ecs
 				(([this, entity]<typename T>()
 				{
 					storage_id s_id = get_id<T>();
-					_internal::poly_storage* storage = (_storage + s_id);
+					poly_storage* storage = (_storage + s_id);
 
 					if (_storage_mask[s_id])
 					{
@@ -249,7 +248,7 @@ namespace ecs
 			}
 		}
 
-		inline bool is_valid(entity_id e)
+		inline bool is_valid(entity_id e) noexcept
 		{
 			if (e == nullent || e >= _spec.max_entity_count)
 			{
@@ -282,16 +281,17 @@ namespace ecs
 				}
 			}
 			else
-			{
-				_query_impl<Fn, typename query_traits::require_args_tuple, typename query_traits::opt_args_tuple>
+			{			
+				_query_impl<Fn, typename query_traits::no_params_args_tuple>
 					(
 						std::forward<Fn>(fn),
-						std::make_index_sequence<query_traits::require_args_count>{},
-						std::make_index_sequence<query_traits::opt_args_count>{},
+						std::make_index_sequence<query_traits::no_params_args_count>{},
+						std::make_index_sequence<query_traits::require_count>{},
+						std::make_index_sequence<query_traits::optional_count>{},
 						std::forward<Params>(params)...
 					);
 			}
-			_fetch_destroy_exec();	
+			_fetch_destroy_exec();
 		}
 
 		template<typename Fn, typename...Params>
@@ -314,16 +314,17 @@ namespace ecs
 							fn(std::forward<Params>(params)...);
 						}
 					}
-					, _entity_manager.get_occupied()
+					, _entity_manager.occupied()
 				);
 			}
 			else
 			{
-				_query_par_impl<Fn, typename query_traits::require_args_tuple, typename query_traits::opt_args_tuple>
+				_query_par_impl<Fn, typename query_traits::no_params_args_tuple>
 					(
 						std::forward<Fn>(fn),
-						std::make_index_sequence<query_traits::require_args_count>{},
-						std::make_index_sequence<query_traits::opt_args_count>{},
+						std::make_index_sequence<query_traits::no_params_args_count>{},
+						std::make_index_sequence<query_traits::require_count>{},
+						std::make_index_sequence<query_traits::optional_count>{},
 						std::forward<Params>(params)...
 					);
 			}
@@ -349,11 +350,12 @@ namespace ecs
 			}
 			else
 			{
-				_query_self_impl<Fn, typename query_self_traits::require_args_tuple, typename query_self_traits::opt_args_tuple>
+				_query_self_impl<Fn, typename query_self_traits::no_params_args_tuple>
 					(
 						std::forward<Fn>(fn),
-						std::make_index_sequence<query_self_traits::require_args_count>{},
-						std::make_index_sequence<query_self_traits::opt_args_count>{},
+						std::make_index_sequence<query_self_traits::no_params_args_count>{},
+						std::make_index_sequence<query_self_traits::require_count>{},
+						std::make_index_sequence<query_self_traits::optional_count>{},
 						std::forward<Params>(params)...
 					);
 			}
@@ -365,11 +367,9 @@ namespace ecs
 		inline void query_self_par(Fn&& fn, Params&&...params) noexcept
 		{
 			KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_self_par inside another parallel query body", _spec.debug_name);
-
 			_query_par_running = true;
 
 			using query_self_traits = typename meta::query_self_traits<Fn, Params...>;
-
 			static_assert(std::is_same_v<std::tuple_element_t<0, typename query_self_traits::args_tuple>, kawa::ecs::entity_id>, "query self fucntion must take kawa::ecs::entity_id as a first parameter");
 
 			if constexpr (query_self_traits::args_count == query_self_traits::params_count)
@@ -380,20 +380,20 @@ namespace ecs
 					{
 						for (size_t i = start; i < end; i++)
 						{
-
 							fn(_entity_manager.get_at_uncheked(i), std::forward<Params>(params)...);
 						}
 					}
-					, _entity_manager.get_occupied()
+					, _entity_manager.occupied()
 				);
 			}
 			else
 			{
-				_query_self_par_impl<Fn, typename  query_self_traits::require_args_tuple, typename  query_self_traits::opt_args_tuple>
+				_query_self_par_impl<Fn, typename query_self_traits::no_params_args_tuple>
 					(
 						std::forward<Fn>(fn),
-						std::make_index_sequence<query_self_traits::require_args_count>{},
-						std::make_index_sequence<query_self_traits::opt_args_count>{},
+						std::make_index_sequence<query_self_traits::no_params_args_count>{},
+						std::make_index_sequence<query_self_traits::require_count>{},
+						std::make_index_sequence<query_self_traits::optional_count>{},
 						std::forward<Params>(params)...
 					);
 			}
@@ -418,12 +418,13 @@ namespace ecs
 				}
 				else
 				{
-					_query_with_impl<Fn, typename query_traits::require_args_tuple, typename query_traits::opt_args_tuple>
+					_query_with_impl<Fn, typename query_traits::no_params_args_tuple>
 						(
 							entity,
 							std::forward<Fn>(fn),
-							std::make_index_sequence<query_traits::require_args_count>{},
-							std::make_index_sequence<query_traits::opt_args_count>{},
+							std::make_index_sequence<query_traits::no_params_args_count>{},
+							std::make_index_sequence<query_traits::require_count>{},
+							std::make_index_sequence<query_traits::optional_count>{},
 							std::forward<Params>(params)...
 						);
 				}
@@ -453,246 +454,94 @@ namespace ecs
 			_fetch_destroy_list_size = 0;
 		}
 
-		template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params>
-		inline void _query_impl(Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
+		template<typename Fn, typename args_tuple, size_t...args_idxs, size_t...req_idxs, size_t...opt_idxs, typename...Params>
+		inline void _query_impl(Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 		{
-			constexpr size_t req_count = sizeof...(req_idxs);
+			constexpr size_t args_count = sizeof...(args_idxs);
 			constexpr size_t opt_count = sizeof...(opt_idxs);
+			constexpr size_t req_count = sizeof...(req_idxs);
 
-			std::array<storage_id, req_count> require_storage_keys = 
+			auto args_storages = std::forward_as_tuple(_storage[get_id<std::remove_pointer_t<std::remove_reference_t<std::tuple_element_t<args_idxs, args_tuple>>>>()]...);
+
+			std::array<poly_storage*, opt_count> optional_storages;
+			_populate_optional_array<args_tuple, args_idxs...>(optional_storages);
+
+			if constexpr (req_count)
 			{
-					get_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-			};
+				std::array<poly_storage*, req_count> require_storages = {};
+				_populate_required_array<args_tuple, args_idxs...>(require_storages);
 
-			if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-			{
-				return;
-			}
+				poly_storage* smallest = require_storages[0];
 
-			std::array<storage_id, opt_count> optional_storage_keys =
-			{
-					get_id<std::tuple_element_t<opt_idxs, opt_tuple>>()...,
-			};
-
-			std::array<_internal::poly_storage*, req_count> require_storages = { &_storage[require_storage_keys[req_idxs]]... };
-			std::array<_internal::poly_storage*, opt_count> optional_storages = { (_storage_mask[optional_storage_keys[opt_idxs]] ? &_storage[optional_storage_keys[opt_idxs]] : _storage[optional_storage_keys[opt_idxs]].template populate<std::tuple_element_t<opt_idxs, opt_tuple>>(_spec.max_entity_count))... };
-
-			if constexpr (require_storages.size())
-			{
-				_internal::poly_storage* smallest = require_storages[0];
-
-				for (_internal::poly_storage* st : require_storages)
+				for (poly_storage* st : require_storages)
 				{
-					if (st->_occupied < smallest->_occupied)
+					if (st->occupied() < smallest->occupied())
 					{
 						smallest = st;
 					}
 				}
 
-				for (size_t i = 0; i < smallest->_occupied; i++)
-				{
-					entity_id e = smallest->_connector[i];
-					if ((require_storages[req_idxs]->has(e) && ...))
-					{
-						fn
-						(
-							std::forward<Params>(params)...,
-							require_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...,
-							optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
-						);
-					}
-				}
-			}
-				
-			else
-			{						
-				for (entity_id e : _entity_manager)
-				{
-					fn
-					(
-						std::forward<Params>(params)..., 
-						optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
-					);
-				}
-			}
-				
-		}
-
-
-		template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params>
-		inline void _query_par_impl(Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
-		{
-			constexpr size_t req_count = sizeof...(req_idxs);
-			constexpr size_t opt_count = sizeof...(opt_idxs);
-
-			std::array<storage_id, req_count> require_storage_keys =
-			{
-					get_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-			};
-
-			if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-			{
-				return;
-			}
-
-			std::array<storage_id, opt_count> optional_storage_keys =
-			{
-					get_id<std::tuple_element_t<opt_idxs, opt_tuple>>()...,
-			};
-
-			std::array<_internal::poly_storage*, req_count> require_storages = { &_storage[require_storage_keys[req_idxs]]... };
-			std::array<_internal::poly_storage*, opt_count> optional_storages = { (_storage_mask[optional_storage_keys[opt_idxs]] ? &_storage[optional_storage_keys[opt_idxs]] : _storage[optional_storage_keys[opt_idxs]].template populate<std::tuple_element_t<opt_idxs, opt_tuple>>(_spec.max_entity_count))... };
-
-			if constexpr (require_storages.size())
-			{
-				_internal::poly_storage* smallest = require_storages[0];
-
-				for (_internal::poly_storage* st : require_storages)
-				{
-					if (st->_occupied < smallest->_occupied)
-					{																																										  
-						smallest = st;
-					}
-				}
-
-				_query_par_engine.query
+				std::apply
 				(
-					[&](size_t start, size_t end)
+					[&](auto&&...storages)
 					{
-						for (size_t i = start; i < end; ++i)
+						for (entity_id e : *smallest)
 						{
-							entity_id e = smallest->_connector[i];
 							if ((require_storages[req_idxs]->has(e) && ...))
 							{
 								fn
 								(
 									std::forward<Params>(params)...,
-									require_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...,
-									optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+									storages.template get_defer<std::tuple_element_t<args_idxs, args_tuple>>(e)...
 								);
 							}
 						}
-					}
-					, smallest->_occupied
+					},
+					args_storages
 				);
 			}
-
 			else
 			{
-				_query_par_engine.query
+				std::apply
 				(
-					[&](size_t start, size_t end)
+					[&](auto&&...storages)
 					{
-						for (size_t i = start; i < end; ++i)
+						for (entity_id e : _entity_manager)
 						{
-							entity_id e = _entity_manager.get_at_uncheked(i);
 							fn
 							(
 								std::forward<Params>(params)...,
-								optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+								storages.template get_defer<std::tuple_element_t<args_idxs, args_tuple>>(e)...
 							);
 						}
-					}
-					, _entity_manager.get_occupied()
+					},
+					args_storages
 				);
 			}
 		}
 
-		template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params>
-		inline void _query_self_impl(Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
+		template<typename Fn, typename args_tuple, size_t...args_idxs, size_t...req_idxs, size_t...opt_idxs, typename...Params>
+		inline void _query_par_impl(Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 		{
-			constexpr size_t req_count = sizeof...(req_idxs);
+			constexpr size_t args_count = sizeof...(args_idxs);
 			constexpr size_t opt_count = sizeof...(opt_idxs);
-
-			std::array<storage_id, req_count> require_storage_keys =
-			{
-					get_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-			};
-
-			if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-			{
-				return;
-			}
-
-			std::array<storage_id, opt_count> optional_storage_keys =
-			{
-					get_id<std::tuple_element_t<opt_idxs, opt_tuple>>()...,
-			};
-
-			std::array<_internal::poly_storage*, req_count> require_storages = { &_storage[require_storage_keys[req_idxs]]... };
-			std::array<_internal::poly_storage*, opt_count> optional_storages = { (_storage_mask[optional_storage_keys[opt_idxs]] ? &_storage[optional_storage_keys[opt_idxs]] : _storage[optional_storage_keys[opt_idxs]].template populate<std::tuple_element_t<opt_idxs, opt_tuple>>(_spec.max_entity_count))... };
-
-			if constexpr (require_storages.size())
-			{
-				_internal::poly_storage* smallest = require_storages[0];
-
-				for (_internal::poly_storage* st : require_storages)
-				{
-					if (st->_occupied < smallest->_occupied)
-					{
-						smallest = st;
-					}
-				}
-
-				for (size_t i = 0; i < smallest->_occupied; i++)
-				{
-					entity_id e = smallest->_connector[i];
-					fn
-					(
-						e,
-						std::forward<Params>(params)...,
-						require_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...,
-						optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
-					);
-				}
-			}
-
-			else
-			{
-				for (entity_id e : _entity_manager)
-				{
-					fn
-					(
-						e,
-						std::forward<Params>(params)...,
-						optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
-					);
-				}
-			}
-
-		}
-
-		template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params>
-		inline void _query_self_par_impl(Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
-		{
 			constexpr size_t req_count = sizeof...(req_idxs);
-			constexpr size_t opt_count = sizeof...(opt_idxs);
 
-			std::array<storage_id, req_count> require_storage_keys =
+			auto args_storages = std::forward_as_tuple(_storage[get_id<std::remove_pointer_t<std::remove_reference_t<std::tuple_element_t<args_idxs, args_tuple>>>>()]...);
+
+			std::array<poly_storage*, opt_count> optional_storages;
+			_populate_optional_array<args_tuple, args_idxs...>(optional_storages);
+
+			if constexpr (req_count)
 			{
-					get_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-			};
+				std::array<poly_storage*, req_count> require_storages = {};
+				_populate_required_array<args_tuple, args_idxs...>(require_storages);
 
-			if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-			{
-				return;
-			}
+				poly_storage* smallest = require_storages[0];
 
-			std::array<storage_id, opt_count> optional_storage_keys =
-			{
-					get_id<std::tuple_element_t<opt_idxs, opt_tuple>>()...,
-			};
-
-			std::array<_internal::poly_storage*, req_count> require_storages = { &_storage[require_storage_keys[req_idxs]]... };
-			std::array<_internal::poly_storage*, opt_count> optional_storages = { (_storage_mask[optional_storage_keys[opt_idxs]] ? &_storage[optional_storage_keys[opt_idxs]] : _storage[optional_storage_keys[opt_idxs]].template populate<std::tuple_element_t<opt_idxs, opt_tuple>>(_spec.max_entity_count))... };
-
-			if constexpr (require_storages.size())
-			{
-				_internal::poly_storage* smallest = require_storages[0];
-
-				for (_internal::poly_storage* st : require_storages)
+				for (poly_storage* st : require_storages)
 				{
-					if (st->_occupied < smallest->_occupied)
+					if (st->occupied() < smallest->occupied())
 					{
 						smallest = st;
 					}
@@ -702,103 +551,321 @@ namespace ecs
 				(
 					[&](size_t start, size_t end)
 					{
-						for (size_t i = start; i < end; ++i)
+						std::apply
+						(
+							[&](auto&&...storages)
+							{
+								for (size_t i = start; i < end; ++i)
+								{
+									entity_id e = smallest->get_at(i);
+									if ((require_storages[req_idxs]->has(e) && ...))
+									{
+										fn
+										(
+											std::forward<Params>(params)...,
+											storages.template get_defer<std::tuple_element_t<args_idxs, args_tuple>>(e)...
+										);
+									}
+								}
+							},
+							args_storages
+						);
+					}
+					, smallest->occupied()
+				);
+			}
+			else
+			{
+				_query_par_engine.query
+				(
+					[&](size_t start, size_t end)
+					{
+						std::apply
+						(
+							[&](auto&&...storages)
+							{
+								for (size_t i = start; i < end; ++i)
+								{
+									entity_id e = _entity_manager.get_at_uncheked(i);
+									fn
+									(
+										std::forward<Params>(params)...,
+										storages.template get_defer<std::tuple_element_t<args_idxs, args_tuple>>(e)...
+									);
+								}
+							},
+							args_storages
+						);
+					}
+					, _entity_manager.occupied()
+				);
+			}
+		}
+
+		template<typename Fn, typename args_tuple, size_t...args_idxs, size_t...req_idxs, size_t...opt_idxs, typename...Params>
+		inline void _query_self_impl(Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
+		{
+			constexpr size_t args_count = sizeof...(args_idxs);
+			constexpr size_t opt_count = sizeof...(opt_idxs);
+			constexpr size_t req_count = sizeof...(req_idxs);
+
+			auto args_storages = std::forward_as_tuple(_storage[get_id<std::remove_pointer_t<std::remove_reference_t<std::tuple_element_t<args_idxs, args_tuple>>>>()]...);
+
+			std::array<poly_storage*, opt_count> optional_storages;
+			_populate_optional_array<args_tuple, args_idxs...>(optional_storages);
+
+			if constexpr (req_count)
+			{
+				std::array<poly_storage*, req_count> require_storages = {};
+				_populate_required_array<args_tuple, args_idxs...>(require_storages);
+
+				poly_storage* smallest = require_storages[0];
+
+				for (poly_storage* st : require_storages)
+				{
+					if (st->occupied() < smallest->occupied())
+					{
+						smallest = st;
+					}
+				}
+
+				std::apply
+				(
+					[&](auto&&...storages)
+					{
+						for (entity_id e : *smallest)
 						{
-							entity_id e = smallest->_connector[i];
 							if ((require_storages[req_idxs]->has(e) && ...))
 							{
 								fn
 								(
 									e,
 									std::forward<Params>(params)...,
-									require_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(e)...,
-									optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
+									storages.template get_defer<std::tuple_element_t<args_idxs, args_tuple>>(e)...
 								);
 							}
 						}
-					}
-					, smallest->_occupied
+					},
+					args_storages
 				);
 			}
+			else
+			{
+				std::apply
+				(
+					[&](auto&&...storages)
+					{
+						for (entity_id e : _entity_manager)
+						{
+							fn
+							(
+								e,
+								std::forward<Params>(params)...,
+								storages.template get_defer<std::tuple_element_t<args_idxs, args_tuple>>(e)...
+							);
+						}
+					},
+					args_storages
+				);
+			}
+		}
 
+		template<typename Fn, typename args_tuple, size_t...args_idxs, size_t...req_idxs, size_t...opt_idxs, typename...Params>
+		inline void _query_self_par_impl(Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
+		{
+			constexpr size_t args_count = sizeof...(args_idxs);
+			constexpr size_t opt_count = sizeof...(opt_idxs);
+			constexpr size_t req_count = sizeof...(req_idxs);
+
+			auto args_storages = std::forward_as_tuple(_storage[get_id<std::remove_pointer_t<std::remove_reference_t<std::tuple_element_t<args_idxs, args_tuple>>>>()]...);
+
+			std::array<poly_storage*, opt_count> optional_storages;
+			_populate_optional_array<args_tuple, args_idxs...>(optional_storages);
+
+			if constexpr (req_count)
+			{
+				std::array<poly_storage*, req_count> require_storages = {};
+				_populate_required_array<args_tuple, args_idxs...>(require_storages);
+
+				poly_storage* smallest = require_storages[0];
+
+				for (poly_storage* st : require_storages)
+				{
+					if (st->occupied() < smallest->occupied())
+					{
+						smallest = st;
+					}
+				}
+
+				_query_par_engine.query
+				(
+					[&](size_t start, size_t end)
+					{
+						std::apply
+						(
+							[&](auto&&...storages)
+							{
+								for (size_t i = start; i < end; ++i)
+								{
+									entity_id e = smallest->get_at(i);
+									if ((require_storages[req_idxs]->has(e) && ...))
+									{
+										fn
+										(
+											e,
+											std::forward<Params>(params)...,
+											storages.template get_defer<std::tuple_element_t<args_idxs, args_tuple>>(e)...
+										);
+									}
+								}
+							},
+							args_storages
+						);
+					}
+					, smallest->occupied()
+				);
+			}
 			else
 			{
 				_query_par_engine.query
 				(
 					[&](size_t start, size_t end)
 					{
-						for (size_t i = start; i < end; ++i)
-						{
-							entity_id e = _entity_manager.get_at_uncheked(i);
-							fn
-							(
-								e,
-								std::forward<Params>(params)...,
-								optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(e)...
-							);
-						}
+						std::apply
+						(
+							[&](auto&&...storages)
+							{
+								for (size_t i = start; i < end; ++i)
+								{
+									entity_id e = _entity_manager.get_at_uncheked(i);
+									fn														
+									(
+										e,
+										std::forward<Params>(params)...,
+										storages.template get_defer<std::tuple_element_t<args_idxs, args_tuple>>(e)...
+									);
+								}
+							},
+							args_storages
+						);
 					}
-					, _entity_manager.get_occupied()
+					, _entity_manager.occupied()
 				);
 			}
 		}
 
 
-		template<typename Fn, typename req_tuple, typename opt_tuple, size_t...req_idxs, size_t...opt_idxs, typename...Params>
-		inline void _query_with_impl(entity_id entity, Fn&& fn, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
+		template<typename Fn, typename args_tuple, size_t...args_idxs, size_t...req_idxs, size_t...opt_idxs, typename...Params>
+		inline void _query_with_impl(entity_id entity, Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 		{
-
-			constexpr size_t req_count = sizeof...(req_idxs);
+			constexpr size_t args_count = sizeof...(args_idxs);
 			constexpr size_t opt_count = sizeof...(opt_idxs);
+			constexpr size_t req_count = sizeof...(req_idxs);
 
-			std::array<storage_id, req_count> require_storage_keys =
+			auto args_storages = std::forward_as_tuple(_storage[get_id<std::remove_pointer_t<std::remove_reference_t<std::tuple_element_t<args_idxs, args_tuple>>>>()]...);
+
+			std::array<poly_storage*, opt_count> optional_storages;
+			_populate_optional_array<args_tuple, args_idxs...>(optional_storages);
+
+			if constexpr (req_count)
 			{
-					get_id<std::tuple_element_t<req_idxs, req_tuple>>()...,
-			};
+				std::array<poly_storage*, req_count> require_storages = {};
+				_populate_required_array<args_tuple, args_idxs...>(require_storages);
 
-			if (!(_storage_mask[require_storage_keys[req_idxs]] && ...))
-			{
-				return;
-			}
-
-			std::array<storage_id, opt_count> optional_storage_keys =
-			{
-					get_id<std::tuple_element_t<opt_idxs, opt_tuple>>()...,
-			};
-
-			std::array<_internal::poly_storage*, req_count> require_storages = { &_storage[require_storage_keys[req_idxs]]... };
-			std::array<_internal::poly_storage*, opt_count> optional_storages = { (_storage_mask[optional_storage_keys[opt_idxs]] ? &_storage[optional_storage_keys[opt_idxs]] : _storage[optional_storage_keys[opt_idxs]].template populate<std::tuple_element_t<opt_idxs, opt_tuple>>(_spec.max_entity_count))... };
-
-			if constexpr (require_storages.size())
-			{
-				_internal::poly_storage* smallest = require_storages[0];
-
-				for (_internal::poly_storage* st : require_storages)
-				{
-					if (st->_occupied < smallest->_occupied)
+				std::apply
+				(
+					[&](auto&&...storages)
 					{
-						smallest = st;
-					}
-				}
-
-				if ((require_storages[req_idxs]->has(entity) && ...))
-				{
-					fn
-					(
-						std::forward<Params>(params)...,
-						require_storages[req_idxs]->template get<std::tuple_element_t<req_idxs, req_tuple>>(entity)...,
-						optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(entity)...
-					);
-				}
+						if ((require_storages[req_idxs]->has(entity) && ...))
+						{
+							fn
+							(
+								std::forward<Params>(params)...,
+								storages.template get_defer<std::tuple_element_t<args_idxs, args_tuple>>(entity)...
+							);
+						}
+					},
+					args_storages
+				);
 			}
 			else
 			{
-				fn
+				std::apply
 				(
-					std::forward<Params>(params)...,
-					optional_storages[opt_idxs]->template get_if_has<std::tuple_element_t<opt_idxs, opt_tuple>>(entity)...
+					[&](auto&&...storages)
+					{
+						fn
+						(
+							std::forward<Params>(params)...,
+							storages.template get_defer<std::tuple_element_t<args_idxs, args_tuple>>(entity)...
+						);
+					},
+					args_storages
 				);
-			}				
+			}
+		}
+
+	private:
+		template<typename args_tuple, size_t...I, size_t N>
+		constexpr void _populate_optional_array(std::array<poly_storage*, N>& out) noexcept
+		{
+			size_t id = 0;
+
+			(([&]<size_t i>()
+			{
+				using T = std::tuple_element_t<I, args_tuple>;
+
+				if constexpr (std::is_pointer_v<T>)
+				{
+					using CleanT = std::remove_pointer_t<T>;
+
+					auto key = get_id<CleanT>();
+					bool& cell = _storage_mask[key];
+					if (cell)
+					{
+						out[id] = _storage + key;
+
+						id++;
+					}
+					else
+					{
+						cell = true;
+						out[id] = _storage[key].template populate<CleanT>(_spec.max_entity_count);
+						id++;
+					}
+				}
+			}.template operator() < I > (), void(), 0), ...);
+		}
+
+		template<typename args_tuple, size_t...I, size_t N>
+		constexpr void _populate_required_array(std::array<poly_storage*, N>& out) noexcept
+		{
+			size_t id = 0;
+
+			(([&]<size_t i>()
+			{
+				using T = std::tuple_element_t<I, args_tuple>;
+
+				if constexpr (std::is_reference_v<T>)
+				{
+					using CleanT = std::remove_reference_t<T>;
+
+					auto key = get_id<CleanT>();
+					bool& cell = _storage_mask[key];
+					if (cell)
+					{
+						out[id] = _storage + key;
+
+						id++;
+					}
+					else
+					{
+						cell = true;
+						out[id] = _storage[key].template populate<CleanT>(_spec.max_entity_count);
+						id++;
+					}
+				}
+			}.template operator() < I > (), void(), 0), ...);
 		}
 
 	private:
@@ -808,6 +875,12 @@ namespace ecs
 			static storage_id id = _storage_id_counter++;
 			KAWA_DEBUG_EXPAND(_validate_storage(id));
 			return id;
+		}
+
+		template<typename T>
+		inline void register_name(const char* name) noexcept
+		{
+			
 		}
 
 		inline void _validate_entity(entity_id id) noexcept
@@ -822,15 +895,16 @@ namespace ecs
 		}
 
 	private:
-		_internal::poly_storage*	_storage = nullptr;
-
 		registry_specification		_spec;
-
+		poly_storage*				_storage = nullptr;
 		bool*						_storage_mask = nullptr;
+
+		storage_id*					_registered_ids = nullptr;
+		const char** 				_registered_names = nullptr;
 
 		entity_manager				_entity_manager;
 
-		size_t*						_fetch_destroy_list = nullptr;
+		entity_id*					_fetch_destroy_list = nullptr;
 		size_t						_fetch_destroy_list_size = 0;
 
 		_internal::query_par_engine	_query_par_engine;
