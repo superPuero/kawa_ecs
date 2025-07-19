@@ -1,8 +1,8 @@
-// ===== kawa::ecs Rich Example Usage & API Documentation =====
+// ===== kawa::ecs Usage & API Documentation =====
 
-#include "kawa/ecs/kwecs.h"
-//#include "single_header/kwecs.h"
-#include <iostream>
+//#include "kawa/ecs/kwecs.h"
+#include "single_header/kwecs.h"
+#include <iostream>          
 #include <string>
 #include <vector>
 
@@ -55,7 +55,6 @@ int main()
     // Streamlined creation, move constructor is strongly advised
     entity_id player = reg.entity_with(Position{ 0, 0 }, Velocity{ 1, 1 }, Label{ "Player" }, Health{ 100 });
     entity_id enemy = reg.entity_with(Position{ 10, 5 }, Velocity{ -0.5f, 0 }, Label{ "Enemy" }, Health{ 50 });
-
 
     // === 3.4. Accessing Components ===
     if (Label* label = reg.get_if_has<Label>(dummy)) 
@@ -184,7 +183,37 @@ int main()
         }
     );
 
-    // === 3.12. Entity Destruction ===
+    // === 3.12. Info-Based Queries ===
+    // These queries use ECS metadata reflection to inspect component types dynamically.
+
+    // query_with_info(entity, callback)
+    // Calls the callback once for every component the entity has.
+    // The callback receives a kawa::ecs::component_info (alias of kawa::meta::type_info) object
+    // containing the component's name, type hash, and will contain other metadata in future.
+
+    reg.query_with_info
+    (
+        player,
+        [](component_info info) 
+        {
+            std::cout << "Player has component: " << info.name << '\n';
+        }
+    );
+
+    // query_self_info(callback)
+    // Calls the callback once for every component on every entity.
+    // The entity ID and component metadata are passed in.
+    // Great for tooling, inspection, serialization, editor UI, etc.
+
+    reg.query_self_info
+    (
+        [](entity_id e, component_info info)
+        {
+            std::cout << "Entity " << e << " has component: " << info.name << '\n';
+        }
+    );
+
+    // === 3.13. Entity Destruction ===
     reg.destroy(clone);
     reg.destroy(dummy);
 

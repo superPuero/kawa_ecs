@@ -93,21 +93,25 @@ namespace kawa
 
 		struct type_info
 		{
-			constexpr type_info()
+			constexpr inline type_info() noexcept
 				: name(type_name<empty_type_info_t>())
 				, hash(type_hash<empty_type_info_t>()) {}
 
-			constexpr type_info(std::string_view n, uint64_t h) noexcept
+			constexpr inline type_info(const type_info& other) noexcept
+				: name(other.name)
+				, hash(other.hash) {}
+
+			constexpr inline type_info(std::string_view n, uint64_t h) noexcept
 				: name(n)
 				, hash(h) {}
 
 			template<typename T>
-			static constexpr type_info create() noexcept
+			static constexpr inline  type_info create() noexcept
 			{
 				return type_info(type_name<T>(), type_hash<T>());
 			}
 
-			constexpr void make_empty() noexcept
+			constexpr inline void make_empty() noexcept
 			{
 				name = type_name<empty_type_info_t>();
 				hash = type_hash<empty_type_info_t>();

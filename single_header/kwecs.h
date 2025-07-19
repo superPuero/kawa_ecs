@@ -1010,6 +1010,8 @@ namespace kawa
 		typedef size_t entity_id;
 		typedef size_t storage_id;
 
+		typedef meta::type_info component_info;
+
 		struct registry_specification
 		{
 			size_t max_entity_count = 256;
@@ -1258,6 +1260,45 @@ namespace kawa
 				if (_entity_manager.alive(entity))
 				{
 					_fetch_destroy_list[_fetch_destroy_list_size++] = entity;
+				}
+			}
+			template<typename Fn, typename...Params>
+			inline void query_with_info(entity_id entity, Fn&& fn, Params&&...params) noexcept
+			{
+				KAWA_DEBUG_EXPAND(_validate_entity(entity));
+
+				if (_entity_manager.alive(entity))
+				{
+					for (storage_id s = 0; s < _storage_id_counter; s++)
+					{
+						if (_storage_mask[s])
+						{
+							auto& storage = _storage[s];
+							if (storage.has(entity))
+							{
+								fn(std::forward<Params>(params)..., storage.get_type_info());
+							}
+						}
+					}
+				}
+			}
+
+			template<typename Fn, typename...Params>
+			inline void query_self_info(Fn&& fn, Params&&...params) noexcept
+			{
+				for (entity_id entity : _entity_manager)
+				{
+					for (storage_id s = 0; s < _storage_id_counter; s++)
+					{
+						if (_storage_mask[s])
+						{
+							auto& storage = _storage[s];
+							if (storage.has(entity))
+							{
+								fn(entity, std::forward<Params>(params)..., storage.get_type_info());
+							}
+						}
+					}
 				}
 			}
 
@@ -1870,19 +1911,13 @@ namespace kawa
 				return id;
 			}
 
-			template<typename T>
-			inline void register_name(const char* name) noexcept
-			{
-
-			}
-
-			inline void _validate_entity(entity_id id) noexcept
+			inline void _validate_entity(entity_id id) const noexcept
 			{
 				KAWA_ASSERT_MSG(id != nullent, "[ {} ]: nullent usage", _spec.debug_name);
 				KAWA_ASSERT_MSG(id < _spec.max_entity_count, "[ {} ]: invalid entity_id [ {} ] usage", _spec.debug_name, id);
 			}
 
-			inline void _validate_storage(storage_id id) noexcept
+			inline void _validate_storage(storage_id id) const noexcept
 			{
 				KAWA_ASSERT_MSG(id < _spec.max_component_types, "[ {} ]: max amoount of unique component types reached [ {} ], increase max_component_types", _spec.debug_name, _spec.max_component_types);
 			}
