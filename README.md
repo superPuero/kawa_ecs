@@ -83,7 +83,7 @@ int main() {
     reg.query(update_position, dt);
 
     // Parallel update
-    reg.query_par([](Position& pos, Velocity& vel) {
+    reg.query_par([](Position& pos, const Velocity& vel) {
         pos.x += vel.x;
         pos.y += vel.y;
     });
