@@ -89,10 +89,10 @@ int main()
     // Simple query with required components
     reg.query
     (
-        [](Position& pos, Velocity& vel)
+        [&](Position& pos, Velocity& vel)
         {
-            pos.x += vel.x;
-            pos.y += vel.y;
+            pos.x += vel.x * dt;
+            pos.y += vel.y * dt;
         }
     );
 
