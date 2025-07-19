@@ -122,10 +122,10 @@ int main() {
 
 ## 🔍 Querying Semantics
 
-The `registry::query` method is a **variadic parameter matching** system with a strict grouping system:
+The `registry::query` method is a **variadic parameter matching** system:
 
 ```
-[ fall-through..., required components..., optional components...]
+[ fall-through..., required/optional components...]
 ```
 
 Each group:
@@ -139,7 +139,7 @@ Each group:
 ### ⚠️ Grouping Rules
 
 - Groups **must appear in this strict order**:  
-  `fall-through` → `required` → `optional`
+  `fall-through` → `required/optional`
 - **Each group may be empty**
  
 ---
@@ -148,16 +148,15 @@ Each group:
 
 ```cpp
 reg.query([](float dt, Label* label), dt);
-reg.query([](Position& pos, Label* label));
-reg.query_self([](entity_id id, float dt, Position& pos, Velocity& vel), dt);
-reg.query_par([](float dt, Position& pos, Velocity& vel), dt);
+reg.query([](Label* label, Position& pos));
+reg.query_self([](entity_id id, float dt, Position& pos, const Velocity& vel), dt);
+reg.query_par([](float dt, Position& pos, Lavel* label, Velocity& vel), dt);
 ```
 
 - ❌ Invalid:
 
 ```cpp
 reg.query([](Position& pos, float dt), dt); // ❌ fall-through must come first
-reg.query([](Position& pos, Label* opt, Velocity& vel)); // ❌ optional must come last
 ```
 
 ---
