@@ -41,7 +41,7 @@ int main()
     ({
         .max_entity_count = 1024,
         .max_component_types = 64,
-        .thread_count = 8,
+        .thread_count = 8, // <- set thread_count to 0 to turn off paralellism
         .debug_name = "demo::ecs_registry"
     });
 
