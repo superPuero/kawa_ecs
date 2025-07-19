@@ -76,7 +76,7 @@ int main()
     entity_id ghost = reg.entity();
     reg.copy<Position, Label>(player, ghost);
     reg.move<Health>(enemy, ghost);
-    reg.erase<Velocity>(ghost);
+    reg.erase<Velocity, Label>(ghost);
 
     // === 3.7. Cloning ===
     entity_id clone = reg.clone(enemy);
