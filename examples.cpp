@@ -12,7 +12,7 @@ struct Velocity { float x, y; };
 struct Label { std::string name; };
 struct Health { int hp; };
 
-// === 2. Define Functions for Queries ===
+// === 2. Free Functions for Queries ===
 void print_label(Label* label) 
 {
     if (label)
