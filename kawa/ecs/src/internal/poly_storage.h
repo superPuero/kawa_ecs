@@ -1,26 +1,91 @@
-#ifndef KAWA_POLY_STORAGE
-#define	KAWA_POLY_STORAGE
+#ifndef KAWA_ECS_POLY_STORAGE
+#define	KAWA_ECS_POLY_STORAGE
 
 #include <memory>
 #include <new>
 #include <cstring> 
 
 #include <iostream>
+#include "ecs_base.h"
 
 namespace kawa
 {
-
+namespace ecs
+{
+namespace _
+{
 	struct empty_poly_storage_type_t {};
 
 	class poly_storage
 	{
 		using delete_fn_t = void(*)(void*);
 		using erase_fn_t = void(*)(void*, size_t);
-		using copy_fn_t = void(*)(void*, size_t, size_t);
-		using move_fn_t = void(*)(void*, size_t, size_t);
+		using copy_fn_t = void(*)(void*, void*, size_t, size_t);
+		using move_fn_t = void(*)(void*, void*, size_t, size_t);
+
+		using on_destroy_invoke_fn_t = void(*)(void*, void*, entity_id);
+		using on_create_invoke_fn_t = void(*)(void*, void*, entity_id);
 
 	public:
 		inline poly_storage() noexcept = default;
+
+		inline poly_storage(const poly_storage& other) noexcept
+			: _type_info(other._type_info)
+			, _capacity(other._capacity)
+			, _occupied(other._occupied)
+		{
+			KAWA_ASSERT_MSG(other._populated, "poly_storage::poly_storage(const poly_storage& other) on unpopulated storage");
+
+			if (!other._storage)
+			{
+				_storage = ::operator new(_type_info.size * _capacity, _type_info.alignment);
+			}
+
+			_delete_fn = other._delete_fn;
+			_erase_fn = other._erase_fn;
+			_copy_fn = other._copy_fn;
+			_move_fn = other._move_fn;
+
+			_mask = new bool[_capacity];
+			std::copy(other._mask, other._mask + _capacity, _mask);
+
+			_connector = new size_t[_capacity];
+			std::copy(other._connector, other._connector + _capacity, _connector);
+
+			_r_connector = new size_t[_capacity];
+			std::copy(other._r_connector, other._r_connector + _capacity, _r_connector);
+
+			for (size_t i = 0; i < _occupied; i++)
+			{
+				size_t id = _connector[i];
+				if (_mask[id])
+				{
+					_copy_fn(other._storage, _storage, id, id);
+				}
+			}
+
+			_populated = true;
+		}
+
+		inline poly_storage(poly_storage&& other) noexcept
+			: _type_info(other._type_info)
+			, _capacity(other._capacity)
+			, _occupied(other._occupied)
+			, _storage(other._storage)
+			, _mask(other._mask)
+			, _connector(other._connector)
+			, _r_connector(other._r_connector)
+			, _delete_fn(other._delete_fn)
+			, _erase_fn(other._erase_fn)
+			, _copy_fn(other._copy_fn)
+			, _move_fn(other._move_fn)
+			, _populated(other._populated)
+		{
+			KAWA_ASSERT_MSG(other._populated, "poly_storage::poly_storage(poly_storage&& other) on unpopulated storage");
+
+			other._populated = false;
+		}
+
 		inline ~poly_storage() noexcept
 		{
 			if (_populated)
@@ -28,6 +93,8 @@ namespace kawa
 				for (size_t i = 0; i < _occupied; i++)
 				{
 					size_t id = _connector[i];
+
+					_on_destory(id);
 					_erase_fn(_storage, id);
 				}
 
@@ -37,9 +104,19 @@ namespace kawa
 				delete[] _connector;
 				delete[] _r_connector;
 
+				if (_on_create_fn)
+				{
+					_on_create_delete_fn(_on_create_fn);
+				}
+				if (_on_destroy_fn)
+				{
+					_on_destroy_delete_fn(_on_destroy_fn);
+				}
+
 				_populated = false;
 			}
 		}
+
 
 	public:
 		template<typename T>
@@ -51,47 +128,49 @@ namespace kawa
 
 			_capacity = capacity;
 
-			if constexpr (!std::is_empty_v<T>)
+			if  constexpr (!std::is_empty_v<T>)
 			{
-				_storage = ::operator new(sizeof(T) * capacity, std::align_val_t{ alignof(T) });
+				_storage = ::operator new(sizeof(T) * capacity, _type_info.alignment);
+			}
+			else
+			{
+				if constexpr (!std::is_trivially_destructible_v<T>)
+				{
+					_storage = ::operator new(sizeof(T) * 1, _type_info.alignment);
+				}
 			}
 
 			_delete_fn =
 				[](void* data)
 				{
-					if constexpr (std::is_empty_v<T>)
-					{
-						return;
-					}
-
 					::operator delete(data, std::align_val_t{ alignof(T) });
 				};
 
-			_mask			= new bool[capacity]();
-			_connector		= new size_t[capacity]();
-			_r_connector	= new size_t[capacity]();
+			_mask = new bool[capacity]();
+			_connector = new size_t[capacity]();
+			_r_connector = new size_t[capacity]();
 
 			_erase_fn =
 				[](void* data, size_t index)
 				{
-					if constexpr (std::is_empty_v<T>)
+					if constexpr (!std::is_empty_v<T>)
 					{
-						return;
+						(static_cast<T*>(data) + index)->~T();
 					}
-
-					(static_cast<T*>(data) + index)->~T();
+					else
+					{
+						if constexpr (!std::is_trivially_destructible_v<T>)
+						{
+							(static_cast<T*>(data))->~T();
+						}
+					}
 				};
 
-			_copy_fn = [](void* data, size_t from, size_t to)
+			_copy_fn = [](void* from_ptr, void* to_ptr, size_t from, size_t to)
 				{
-					if constexpr (std::is_empty_v<T>)
-					{
-						return;
-					}
-
 					if constexpr (std::is_copy_constructible_v<T>)
 					{
-						new (static_cast<T*>(data) + to) T(*(static_cast<T*>(data) + from));
+						new (static_cast<T*>(to_ptr) + to) T(*(static_cast<T*>(from_ptr) + from));
 					}
 					else
 					{
@@ -99,16 +178,11 @@ namespace kawa
 					}
 				};
 
-			_move_fn = [](void* data, size_t from, size_t to)
+			_move_fn = [](void* from_ptr, void* to_ptr, size_t from, size_t to)
 				{
-					if constexpr (std::is_empty_v<T>)
-					{
-						return;
-					}
-
 					if constexpr (std::is_move_constructible_v<T>)
 					{
-						new (static_cast<T*>(data) + to) T(std::move(*(static_cast<T*>(data) + from)));
+						new (static_cast<T*>(to_ptr) + to) T(std::move(*(static_cast<T*>(from_ptr) + from)));
 					}
 					else
 					{
@@ -144,6 +218,7 @@ namespace kawa
 			KAWA_ASSERT_MSG(_validate_type<T>(), "poly_storage<{}>::emplace invalid type [ {} ] access", _type_info.name, meta::type_name<T>());
 
 			bool& cell = _mask[index];
+
 			if (!cell)
 			{
 				size_t l_idx = _occupied++;
@@ -153,14 +228,21 @@ namespace kawa
 
 				cell = true;
 
-				return *(new (static_cast<T*>(_storage) + index) T(std::forward<Args>(args)...));
+				T& val = *(new (static_cast<T*>(_storage) + index) T(std::forward<Args>(args)...));
+
+				_on_create(index);
+
+				return val;
 			}
 			else
 			{
+				_on_destory(index);
+
 				_erase_fn(_storage, index);
 
 				return *(new (static_cast<T*>(_storage) + index) T(std::forward<Args>(args)...));
 			}
+
 
 		}
 
@@ -186,7 +268,6 @@ namespace kawa
 			{
 				return nullptr;
 			}
-
 			return static_cast<T*>(_storage) + index;
 		}
 
@@ -226,6 +307,7 @@ namespace kawa
 			{
 				size_t l_idx = _r_connector[index];
 
+				_on_destory(index);
 				_erase_fn(_storage, index);
 
 				_connector[l_idx] = _connector[--_occupied];
@@ -241,7 +323,7 @@ namespace kawa
 			KAWA_ASSERT_MSG(_validate_index(from), "poly_storage<{}>::copy out of bounds index [ {} ] access", _type_info.name, from);
 			KAWA_ASSERT_MSG(_validate_index(to), "poly_storage<{}>::copy out of bounds index [ {} ] access", _type_info.name, to);
 
-			if (has(from))
+			if (_mask[from])
 			{
 				bool& cell = _mask[to];
 				if (!cell)
@@ -253,12 +335,16 @@ namespace kawa
 
 					cell = true;
 
-					_copy_fn(_storage, from, to);
+					_copy_fn(_storage, _storage, from, to);
+					_on_create(to);
 				}
 				else
 				{
+					_on_destory(to);
 					_erase_fn(_storage, to);
-					_copy_fn(_storage, from, to);
+					_copy_fn(_storage, _storage, from, to);
+					_on_create(to);
+
 				}
 			}
 		}
@@ -269,7 +355,7 @@ namespace kawa
 			KAWA_ASSERT_MSG(_validate_index(from), "poly_storage<{}>::move out of bounds index [ {} ] access", _type_info.name, from);
 			KAWA_ASSERT_MSG(_validate_index(to), "poly_storage<{}>::move out of bounds index [ {} ] access", _type_info.name, to);
 
-			if (has(from))
+			if (_mask[from])
 			{
 				bool& cell = _mask[to];
 				if (!cell)
@@ -281,16 +367,125 @@ namespace kawa
 
 					cell = true;
 
-					_move_fn(_storage, from, to);
+					_move_fn(_storage, _storage, from, to);
+					_on_create(to);
 				}
 				else
 				{
+					_on_destory(to);
 					_erase_fn(_storage, to);
-					_move_fn(_storage, from, to);
+					_move_fn(_storage, _storage, from, to);
+					_on_create(to);
 				}
 
+				_on_destory(from);
 				erase(from);
+
 			}
+		}
+
+		template<typename Fn>
+		inline void set_on_create(Fn&& fn)noexcept
+		{
+			if (!_on_create_fn)
+			{
+				_on_create_fn = new Fn(std::forward<Fn>(fn));
+				_on_create_delete_fn =
+					[](void* fn)
+					{
+						delete static_cast<Fn*>(fn);
+					};
+
+				_on_create_invoke_fn =
+					[](void* fn, void* data, entity_id entity)
+					{
+						using T = typename meta::template function_traits<Fn>::template arg_at<1>;
+						static_cast<Fn*>(fn)->operator()(entity, *(static_cast<std::remove_reference_t<T>*>(data) + entity));
+					};
+			}
+			else
+			{
+				_on_create_delete_fn(_on_create_fn);
+				_on_create_fn = new Fn(std::forward<Fn>(fn));
+				_on_create_delete_fn =
+					[](void* fn)
+					{
+						delete static_cast<Fn*>(fn);
+					};
+
+				_on_create_invoke_fn =
+					[](void* fn, void* data, entity_id entity)
+					{
+						using T = typename meta::template function_traits<Fn>::template arg_at<1>;
+						static_cast<Fn*>(fn)->operator()(entity, *(static_cast<std::remove_reference_t<T>*>(data) + entity));
+					};
+			}
+		}
+
+		template<typename Fn>
+		inline void set_on_destroy(Fn&& fn)noexcept
+		{
+			if (!_on_destroy_fn)
+			{
+				_on_destroy_fn = new Fn(std::forward<Fn>(fn));
+				_on_destroy_delete_fn =
+					[](void* fn)
+					{
+						delete static_cast<Fn*>(fn);
+					};
+
+				_on_destroy_invoke_fn =
+					[](void* fn, void* data, entity_id entity)
+					{
+						using T = typename meta::template function_traits<Fn>::template arg_at<1>;
+						static_cast<Fn*>(fn)->operator()(entity, *(static_cast<std::remove_reference_t<T>*>(data) + entity));
+					};
+			}
+			else
+			{
+				_on_destroy_delete_fn(_on_create_fn);
+				_on_destroy_fn = new Fn(std::forward<Fn>(fn));
+				_on_destroy_delete_fn =
+					[](void* fn)
+					{
+						delete static_cast<Fn*>(fn);
+					};
+
+				_on_destroy_invoke_fn =
+					[](void* fn, void* data, entity_id entity)
+					{
+						using T = typename meta::template function_traits<Fn>::template arg_at<1>;
+						static_cast<Fn*>(fn)->operator()(entity, *(static_cast<std::remove_reference_t<T>*>(data) + entity));
+					};
+			}
+		}
+
+		inline void remove_on_create() noexcept
+		{
+			if (_on_create_fn)
+			{
+				_on_create_delete_fn(_on_create_fn);
+				_on_create_fn = nullptr;
+			}
+		}
+
+		inline void remove_on_destroy() noexcept
+		{
+			if (_on_destroy_fn)
+			{
+				_on_destroy_delete_fn(_on_create_fn);
+				_on_destroy_fn = nullptr;
+			}
+		}
+
+		inline bool has_on_create() noexcept
+		{
+			return _on_create_fn;
+		}
+
+		inline bool has_on_destroy() noexcept
+		{
+			return _on_destroy_fn;
 		}
 
 		inline bool is_populated() const noexcept
@@ -324,6 +519,23 @@ namespace kawa
 		}
 
 	private:
+		inline void _on_destory(entity_id id) noexcept
+		{
+			if (_on_destroy_fn)
+			{
+				_on_destroy_invoke_fn(_on_destroy_fn, _storage, id);
+			}
+		}
+
+		inline void _on_create(entity_id id) noexcept
+		{
+			if (_on_create_fn)
+			{
+				_on_create_invoke_fn(_on_create_fn, _storage, id);
+			}
+		}
+
+	private:
 		inline bool _validate_index(size_t id) const noexcept
 		{
 			if (id >= _capacity)
@@ -344,21 +556,33 @@ namespace kawa
 			return true;
 		}
 
-		void*			_storage = nullptr;
-		bool*			_mask = nullptr;
-		size_t*			_connector = nullptr;
-		size_t*			_r_connector = nullptr;
+	private:
+		size_t			_capacity = 0;
+		void* _storage = nullptr;
+		bool* _mask = nullptr;
+		size_t* _connector = nullptr;
+		size_t* _r_connector = nullptr;
 		size_t			_occupied = 0;
 
 		erase_fn_t		_erase_fn = nullptr;
 		delete_fn_t		_delete_fn = nullptr;
 		copy_fn_t		_copy_fn = nullptr;
 		move_fn_t		_move_fn = nullptr;
-		size_t			_capacity = 0;
+
+		void* _on_create_fn = nullptr;
+		void* _on_destroy_fn = nullptr;
+
+		on_create_invoke_fn_t	_on_create_invoke_fn = nullptr;
+		on_destroy_invoke_fn_t	_on_destroy_invoke_fn = nullptr;
+
+		delete_fn_t				_on_create_delete_fn = nullptr;
+		delete_fn_t				_on_destroy_delete_fn = nullptr;
 
 		bool			_populated = false;
 
 		meta::type_info	_type_info;
 	};
+}
+}
 }
 #endif

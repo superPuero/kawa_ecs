@@ -2,6 +2,7 @@
 
 //#include "kawa/ecs/kwecs.h"
 #include "single_header/kwecs.h"
+
 #include <iostream>          
 #include <string>
 #include <vector>
@@ -36,21 +37,27 @@ int main()
 // === 3. kawa::ecs ===
     using namespace kawa::ecs;
 
+#if 1
     // === 3.1. Initialize Registry ===
     registry reg
     ({
         .max_entity_count = 1024,
         .max_component_types = 64,
         .thread_count = 8, // <- set thread_count to 0 to turn off paralellism
-        .debug_name = "demo::ecs_registry"
+        .debug_name = "demo::registry"
     });
+
+    
+    // Lifetime Hooks
+    reg.on_construct([](entity_id i, Label& l) { std::cout << "New label: " << l.name << " on " << i << '\n'; });
+    reg.on_destroy([](entity_id i, Label& l) { std::cout << "Destroyed label: " << l.name << " on " << i << '\n'; });
 
     // === 3.2. Create Entities ===
     entity_id dummy = reg.entity();
 
    // === 3.3. Emplace Components ===
     reg.emplace<Label>(dummy, "Dummy");
-    reg.emplace<Health>(dummy, 20);
+    reg.emplace<Health>(dummy, 12);
 
     // Streamlined creation, move constructor is strongly advised
     entity_id player = reg.entity_with(Position{ 0, 0 }, Velocity{ 1, 1 }, Label{ "Player" }, Health{ 100 });
@@ -79,6 +86,8 @@ int main()
 
     // === 3.7. Cloning ===
     entity_id clone = reg.clone(enemy);
+    entity_id clone2 = reg.clone(dummy);
+
     reg.clone(player, dummy); // Overwrites dummy's components
 
     // === 3.8. Queries ===
@@ -112,7 +121,7 @@ int main()
             pos.x += vel.x * delta;
             pos.y += vel.y * delta;
             std::cout << (label ? label->name : "[No Label]") << " moved.\n";
-		}, dt // <- passing fallthrough parameter after function, in order that they are in function signature
+        }, 12// <- passing fallthrough parameter after function, in order that they are in function signature
     );
 
     // Query with external function
@@ -144,14 +153,6 @@ int main()
         }
     );
 
-    // Self query with conditional destroy
-    reg.query_self([&](entity_id id, Health& hp) {
-        if (hp.hp <= 0) {
-            std::cout << "Entity " << id << " is dead. Scheduling destroy.\n";
-            reg.fetch_destroy(id);
-        }
-        });
-
     // === 3.10. Parallel Queries ===
 	// Same as query, but runs in parallel using multiple threads.
 	// Specify ammount of threads to use in kawa::ecs::registry constructor, set it to 0 to turn off parallelism.
@@ -175,7 +176,7 @@ int main()
     // === 3.11. Single-Entity Query ===
     reg.query_with
     (   
-		player, // <- First parameter if entity upon which query will be executed
+		player, // <- First parameter is entity upon which query will be executed
         [](Position& pos, Velocity& vel) 
         {
             pos.x += vel.x * 0.5f;
@@ -183,27 +184,26 @@ int main()
         }
     );
 
-    // === 3.12. Info-Based Queries ===
+    // === 3.12. Reflection-Info Queries ===
     // These queries use ECS metadata reflection to inspect component types dynamically.
 
-    // query_with_info(entity, callback)
+    // kawa::ecs::query_with_info
     // Calls the callback once for every component the entity has.
     // The callback receives a kawa::ecs::component_info (alias of kawa::meta::type_info) object
-    // containing the component's name, type hash, and will contain other metadata in future.
+    // containing the component's name, type hash, will contain other metadata in future.
 
     reg.query_with_info
     (
-        player,
-        [](component_info info) 
+        player, // <- First parameter is entity upon which query will be executed
+        [](component_info info)
         {
             std::cout << "Player has component: " << info.name << '\n';
         }
     );
 
-    // query_self_info(callback)
+    // kawa::ecs::query_self_info
     // Calls the callback once for every component on every entity.
     // The entity ID and component metadata are passed in.
-    // Great for tooling, inspection, serialization, editor UI, etc.
 
     reg.query_self_info
     (
@@ -221,5 +221,5 @@ int main()
 
     std::cin.get();
 
-    return 0;
+#endif
 }

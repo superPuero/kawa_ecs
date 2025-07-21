@@ -2,6 +2,7 @@
 #define KAWA_ECS_ENTITY_MANAGER
 
 #include <limits>
+#include "core.h"
 
 namespace kawa
 {
@@ -12,29 +13,28 @@ typedef size_t entity_id;
 
 constexpr inline entity_id nullent = std::numeric_limits<entity_id>::max();
 
+namespace _
+{
 class entity_manager
 {
 public:
-	entity_manager(size_t capacity)
+	entity_manager(size_t capacity, const std::string& debug_name)
+		: _debug_name(debug_name)
 	{
 		_capacity = capacity;
 
-		_free_list				= new size_t[capacity]();
-		_entity_mask			= new bool[capacity]();
-		_entity_entries			= new size_t[capacity]();
-		_r_entity_entries		= new size_t[capacity]();
+		_free_list = new size_t[capacity]();
+		_entity_mask = new bool[capacity]();
+		_entity_entries = new size_t[capacity]();
+		_r_entity_entries = new size_t[capacity]();
 	};
+
 	~entity_manager()
 	{
 		delete[] _free_list;
 		delete[] _entity_mask;
 		delete[] _entity_entries;
 		delete[] _r_entity_entries;
-
-		_free_list = nullptr;
-		_entity_mask = nullptr;
-		_entity_entries = nullptr;
-		_r_entity_entries = nullptr;
 	};
 
 	inline entity_id get_new() noexcept
@@ -65,11 +65,15 @@ public:
 
 	inline bool alive(entity_id e)	noexcept
 	{
+		KAWA_DEBUG_EXPAND(_validate_entity(e));
+
 		return _entity_mask[e];
 	}
 
 	inline void remove_unchecked(entity_id e) noexcept
 	{
+		KAWA_DEBUG_EXPAND(_validate_entity(e));
+
 		_free_list[_free_list_size++] = e;
 		_entity_mask[e] = false;
 
@@ -82,6 +86,8 @@ public:
 
 	inline void remove(entity_id e) noexcept
 	{
+		KAWA_DEBUG_EXPAND(_validate_entity(e));
+
 		bool& entity_cell = _entity_mask[e];
 
 		if (entity_cell)
@@ -101,7 +107,7 @@ public:
 		return _entity_entries[i];
 	}
 
-	inline size_t* begin() noexcept 
+	inline entity_id* begin() noexcept
 	{
 		return _entity_entries;
 	}
@@ -111,25 +117,35 @@ public:
 		return _entity_entries + _occupied;
 	}
 
-	inline entity_id occupied() noexcept
+	inline size_t occupied() noexcept
 	{
 		return _occupied;
 	}
 
+
 private:
-	bool* _entity_mask				= nullptr;
+	inline void _validate_entity(entity_id id) const noexcept
+	{
+		KAWA_ASSERT_MSG(id != nullent, "[ {} ]: nullent usage", _debug_name);
+		KAWA_ASSERT_MSG(id < _capacity, "[ {} ]: invalid entity_id [ {} ] usage", _debug_name, id);
+	}
 
-	entity_id* _entity_entries			= nullptr;
-	size_t* _r_entity_entries		= nullptr;
-	size_t	_entries_counter		= 0;
+private:
+	bool* _entity_mask = nullptr;
 
-	size_t* _free_list				= nullptr;
-	size_t	_free_list_size			= 0;
+	entity_id* _entity_entries = nullptr;
+	size_t* _r_entity_entries = nullptr;
+	size_t	_entries_counter = 0;
 
-	size_t _occupied				= 0;
-	size_t _capacity				= 0;
+	size_t* _free_list = nullptr;
+	size_t	_free_list_size = 0;
 
+	size_t _occupied = 0;
+	size_t _capacity = 0;
+
+	std::string _debug_name;
 };
+}
 }
 }
 

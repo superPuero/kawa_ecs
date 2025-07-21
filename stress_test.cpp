@@ -2,8 +2,8 @@
 #include <chrono>
 #include <atomic>
 
- //#include "kawa/ecs/kwecs.h"        
-#include "single_header/kwecs.h"
+ #include "kawa/ecs/kwecs.h"        
+//#include "single_header/kwecs.h"
 
 using namespace kawa::ecs;
 
@@ -45,7 +45,7 @@ int main()
     registry reg
     ({
         .max_entity_count = ENTITY_COUNT,
-        .max_component_types = 64,
+        .max_component_types = 16,
         .thread_count = 8,     
         .debug_name = "registry::stress_test",
     });
@@ -164,8 +164,6 @@ int main()
     //    }
     //);
 
-    //reg.query([](int&, float*, char&) {});
-
     benchmark
     (
         "Vec3 + Velocity + optional Score",
@@ -181,7 +179,6 @@ int main()
             );
         }
     );
-
 
 #if 1
     
@@ -490,7 +487,8 @@ int main()
         [&]()
         {
             float multiplier = 1.1f;
-            reg.query_self(
+            reg.query_self
+            (
                 [](entity_id id, float m, Velocity& v)
                 {
                     v.x *= m;
@@ -508,7 +506,8 @@ int main()
         [&]()
         {
             volatile size_t count = 0;
-            reg.query_self(
+            reg.query_self
+            (
                 [&](entity_id id, Health* hp)
                 {
                     if (hp) count++;

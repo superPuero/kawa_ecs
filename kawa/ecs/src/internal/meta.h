@@ -95,26 +95,34 @@ namespace kawa
 		{
 			constexpr inline type_info() noexcept
 				: name(type_name<empty_type_info_t>())
-				, hash(type_hash<empty_type_info_t>()) {}
+				, hash(type_hash<empty_type_info_t>()) 
+				, size(0)
+				, alignment(std::align_val_t{0}) {}
 
 			constexpr inline type_info(const type_info& other) noexcept
 				: name(other.name)
-				, hash(other.hash) {}
+				, hash(other.hash)
+				, size(other.size)
+				, alignment(other.alignment) {}
 
-			constexpr inline type_info(std::string_view n, uint64_t h) noexcept
+			constexpr inline type_info(std::string_view n, uint64_t h, size_t s, std::align_val_t align) noexcept
 				: name(n)
-				, hash(h) {}
+				, hash(h)
+				, size(s)
+				, alignment(align){}
 
 			template<typename T>
-			static constexpr inline  type_info create() noexcept
+			[[nodiscard]] static constexpr inline type_info create() noexcept
 			{
-				return type_info(type_name<T>(), type_hash<T>());
+				return type_info(type_name<T>(), type_hash<T>(), sizeof(T), std::align_val_t{ alignof(T) });
 			}
 
 			constexpr inline void make_empty() noexcept
 			{
 				name = type_name<empty_type_info_t>();
 				hash = type_hash<empty_type_info_t>();
+				size = 0;
+				alignment = std::align_val_t{ 0 };
 			}
 
 			constexpr bool operator==(const type_info& other) noexcept
@@ -124,6 +132,8 @@ namespace kawa
 
 			std::string_view name;
 			uint64_t hash;
+			size_t size;
+			std::align_val_t alignment;
 		};
 
 		template<typename...Types>
@@ -204,14 +214,17 @@ namespace kawa
 		template<typename T>
 		struct function_traits<T> : function_traits<decltype(&T::operator())> {};
 
-		template<size_t Start, size_t End>
+		template<typename Tuple, size_t start, size_t end, typename = void>
 		struct sub_tuple
 		{
-			static_assert(Start <= End, "Start index must be <= End");
+			using tuple = decltype([]<size_t... I>(std::index_sequence<I...>) -> std::tuple<std::tuple_element_t<start + I, Tuple>...>
+			{}(std::make_index_sequence<end - start>{}));
+		};
 
-			template<typename Tuple>
-			using of = decltype([]<size_t... I>(std::index_sequence<I...>) -> std::tuple<std::tuple_element_t<Start + I, Tuple>...>
-			{}(std::make_index_sequence<End - Start>{}));
+		template<typename Tuple, size_t start, size_t end>
+		struct sub_tuple<Tuple, start, end, std::enable_if_t<((end - start) > std::tuple_size_v<Tuple>)>>
+		{
+			using tuple = typename std::tuple<>;
 		};
 
 		template <typename T, template <typename> typename F>
@@ -226,6 +239,21 @@ namespace kawa
 		template <typename T, template <typename...> typename F>
 		using transform_each_t = typename transform_each<T, F>::type;
 
+		template<template <typename> typename P, typename... Args>
+		struct collect
+		{
+			static constexpr bool val = (P<Args>::value && ...);
+		};
+
+		template<template <typename, typename> typename P, typename tpl1, typename tpl2>
+		struct collect_pairs
+		{
+			static constexpr bool val = []<size_t...I>(std::index_sequence<I...>)
+			{
+				return (P<std::tuple_element_t<I, tpl1>, std::tuple_element_t<I, tpl2>>::value && ...);
+			}(std::make_index_sequence<std::tuple_size_v<tpl1>>{});
+		};
+			
 		template <typename T>
 		struct remove_suffix_cv {
 			using type = T;
