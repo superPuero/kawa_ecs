@@ -21,7 +21,7 @@ class storage_manager
 {
 
 public:
-	storage_manager(size_t storage_capacity, size_t capacity, const std::string& debug_name)
+	inline storage_manager(size_t storage_capacity, size_t capacity, const std::string& debug_name) noexcept
 		: _debug_name(debug_name)
 	{
 		_capacity = capacity;
@@ -33,7 +33,42 @@ public:
 		_r_entries = new size_t[storage_capacity]();
 	};
 
-	~storage_manager()
+	inline storage_manager(const storage_manager& other) noexcept
+		: _debug_name(other._debug_name)
+		, _capacity(other._capacity)
+		, _storage_capacity(other._storage_capacity)
+		, _entries_counter(other._entries_counter)			
+	{
+		_storages = new poly_storage[_storage_capacity];
+		std::copy(other._storages, other._storages + _storage_capacity, _storages);
+
+		_mask = new bool[_storage_capacity];
+		std::copy(other._mask, other._mask + _storage_capacity, _mask);
+
+		_entries = new size_t[_storage_capacity];
+		std::copy(other._entries, other._entries + _storage_capacity, _entries);
+
+		_r_entries = new size_t[_storage_capacity];
+		std::copy(other._r_entries, other._r_entries + _storage_capacity, _r_entries);
+	};
+
+	inline storage_manager(storage_manager&& other) noexcept
+		: _debug_name(std::move(other._debug_name))
+		, _capacity(other._capacity)
+		, _storage_capacity(other._storage_capacity)
+		, _entries_counter(other._entries_counter)
+		, _storages(other._storages)
+		, _mask(other._mask)
+		, _entries(other._entries)
+		, _r_entries(other._r_entries)
+	{
+		other._storages = nullptr;
+		other._mask = nullptr;
+		other._entries = nullptr;
+		other._r_entries = nullptr;
+	};
+
+	inline ~storage_manager() noexcept
 	{
 		delete[] _storages;
 		delete[] _mask;
@@ -41,32 +76,80 @@ public:
 		delete[] _r_entries;
 	};
 
-public:
-	template<typename T>
-	inline storage_id get_id() noexcept
+	inline storage_manager& operator=(const storage_manager& other) noexcept
 	{
-		static storage_id id = register_id<T>();
-		return id;
+		if (this != &other)
+		{
+			delete[] _storages;
+			delete[] _mask;
+			delete[] _entries;
+			delete[] _r_entries;
+
+			_debug_name = other._debug_name;
+			_capacity = other._capacity;
+			_storage_capacity = other._storage_capacity;
+			_entries_counter = other._entries_counter;
+
+			_storages = new poly_storage[_storage_capacity];
+			std::copy(other._storages, other._storages + _storage_capacity, _storages);
+
+			_mask = new bool[_storage_capacity];
+			std::copy(other._mask, other._mask + _storage_capacity, _mask);
+
+			_entries = new size_t[_storage_capacity];
+			std::copy(other._entries, other._entries + _storage_capacity, _entries);
+
+			_r_entries = new size_t[_storage_capacity];
+			std::copy(other._r_entries, other._r_entries + _storage_capacity, _r_entries);
+		}
+		return *this;
+	}
+
+	inline storage_manager& operator=(storage_manager&& other) noexcept
+	{
+		if (this != &other)
+		{
+			delete[] _storages;
+			delete[] _mask;
+			delete[] _entries;
+			delete[] _r_entries;
+						
+			_debug_name = std::move(other._debug_name);
+			_capacity = other._capacity;
+			_storage_capacity = other._storage_capacity;
+			_entries_counter = other._entries_counter;
+			_storages = other._storages;
+			_mask = other._mask;
+			_entries = other._entries;
+			_r_entries = other._r_entries;
+
+			other._storages = nullptr;
+			other._mask = nullptr;
+			other._entries = nullptr;
+			other._r_entries = nullptr;
+		}
+		return *this;
+	}
+
+public:
+	inline void clear() noexcept
+	{
+		std::fill(_mask, _mask + _storage_capacity, false);
+
+		for (size_t i = 0; i < _entries_counter; i++)
+		{
+			_storages[_entries[i]].clear();
+		}
+
+		_entries_counter = 0;
+		_entries_counter = 0;
 	}
 
 	template<typename T>
-	inline storage_id register_id() noexcept
+	inline storage_id get_id() noexcept
 	{
-		storage_id id = _id_counter++;
-	
-		KAWA_DEBUG_EXPAND(_validate_storage(id));
-
-		poly_storage& storage = _storages[id];
-		storage.populate<T>(_capacity);
-
-		_mask[id] = true;
-
-		size_t idx = _entries_counter++;
-		_entries[idx] = id;
-		_r_entries[id] = idx;
-		_occupied++;
-
-		return id;	
+		static storage_id id = _id_counter++;
+		return id;
 	}
 
 	template<typename...Args>
@@ -78,17 +161,7 @@ public:
 	template<typename T, typename...Args>
 	inline T& emplace(size_t index, Args&&...args) noexcept
 	{
-		storage_id id = get_id<T>();
-
-		bool& storage_cell = _mask[id];
-
-		poly_storage& storage = _storages[id];
-
-		if (!storage_cell)
-		{
-			storage.template populate<T>(_capacity);
-			storage_cell = true;
-		}
+		poly_storage& storage = get_storage<T>();
 
 		return storage.emplace<T>(index, std::forward<Args>(args)...);
 	}
@@ -98,12 +171,8 @@ public:
 	{
 		(([this, index]<typename T>()
 		{
-			storage_id id = get_id<T>();
-
-			if (_mask[id])
-			{
-				_storages[id].erase(index);
-			}
+			
+			get_storage<T>().erase(index);
 		}.template operator() < Args > ()), ...);
 	}
 
@@ -112,40 +181,20 @@ public:
 	{
 		return (([this, index]<typename T>()
 		{
-			storage_id id = get_id<T>();
-
-			if (_mask[id])
-			{
-				return _storages[id].has(index);
-			}
-			return false;
+			return get_storage<T>().has(index);
 		}.template operator()<Args>()) && ...);
 	}
 
 	template<typename T>
 	inline T& get(size_t index) noexcept
 	{
-		storage_id id = get_id<T>();
-
-		if (_mask[id])
-		{
-			return _storages[id].get<T>(index);
-		}
-
-		KAWA_ASSERT(false);
+		return get_storage<T>().template get<T>(index);
 	}
 
 	template<typename T>
 	inline T* get_if_has(size_t index) noexcept
 	{
-		storage_id id = get_id<T>();
-
-		if (!_mask[id])
-		{
-			return nullptr;
-		}
-
-		return _storages[id].get_if_has<T>(index);
+		return get_storage<T>().template get_if_has<T>(index);
 	}
 
 	template<typename...Args>
@@ -155,14 +204,7 @@ public:
 		{
 			(([this, from, to]<typename T>()
 			{
-				storage_id id = get_id<T>();
-
-				if (!_mask[id])
-				{
-					return;
-				}
-
-				_storages[id].copy(from, to);
+				get_storage<T>().copy(from, to);
 
 			}. template operator()<Args>()), ...);
 		}
@@ -175,14 +217,7 @@ public:
 		{
 			(([this, from, to]<typename T>()
 			{
-				storage_id id = get_id<T>();
-
-				if (!_mask[id])
-				{
-					return;
-				}
-
-				_storages[id].move(from, to);
+				get_storage<T>().move(from, to);
 
 			}. template operator()<Args>()), ...);
 		}
@@ -193,31 +228,47 @@ public:
 		return _mask[e];
 	}
 
-	inline void remove_unchecked(storage_id id) noexcept
-	{
-		size_t idx = _r_entries[id];
+	//inline void remove_unchecked(storage_id id) noexcept
+	//{
+	//	size_t idx = _r_entries[id];
 
-		_entries[idx] = _entries[--_entries_counter];
-		_r_entries[_entries[_entries_counter]] = idx;
-	}
+	//	_entries[idx] = _entries[--_entries_counter];
+	//	_r_entries[_entries[_entries_counter]] = idx;
+	//}
 
-	inline void remove(storage_id id) noexcept
-	{
-		bool& cell = _mask[id];
+	//inline void remove(storage_id id) noexcept
+	//{
+	//	bool& cell = _mask[id];
 
-		if (cell)
-		{
-			size_t idx = _r_entries[id];
+	//	if (cell)
+	//	{
+	//		size_t idx = _r_entries[id];
 
-			_entries[idx] = _entries[--_entries_counter];
-			_r_entries[_entries[_entries_counter]] = idx;
-		}
-	}
+	//		_entries[idx] = _entries[--_entries_counter];
+	//		_r_entries[_entries[_entries_counter]] = idx;
+	//	}
+	//}
 
 	template<typename T>
 	inline poly_storage& get_storage() noexcept
 	{
-		return _storages[get_id<T>()];
+		storage_id id = get_id<T>();
+
+		poly_storage& storage = _storages[id];
+		bool& cell = _mask[id];
+
+		if (!cell)
+		{
+			storage.populate<T>(_capacity);
+			cell = true;
+
+			size_t idx = _entries_counter++;
+
+			_entries[idx] = id;
+			_r_entries[id] = idx;
+		}
+
+		return storage;
 	}
 
 	inline poly_storage& get_storage(storage_id id) noexcept
@@ -232,12 +283,12 @@ public:
 
 	inline storage_id* end() noexcept
 	{
-		return _entries + _occupied;
+		return _entries + _entries_counter;
 	}
 
 	inline size_t occupied() noexcept
 	{
-		return _occupied;
+		return _entries_counter;
 	}
 
 private:
@@ -254,7 +305,6 @@ private:
 	size_t*			_r_entries = nullptr;
 	size_t			_entries_counter = 0;
 
-	size_t			_occupied = 0;
 	size_t			_capacity = 0;
 	size_t			_storage_capacity = 0;
 

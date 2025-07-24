@@ -1,8 +1,10 @@
 #ifndef KAWA_META_ECS_EXT
 #define	KAWA_META_ECS_EXT
 
-#include "meta.h"
 #include <type_traits>
+
+#include "meta.h"
+#include "ecs_base.h"
 
 namespace kawa
 {
@@ -49,10 +51,24 @@ namespace kawa
 			constexpr static size_t optional_count = meta::ptr_type_count<no_params_args_tuple>::value;
 		};
 
+
 		template<typename T>
-		concept non_cv =	!std::is_const_v<std::remove_reference_t<T>> &&
-							!std::is_volatile_v<std::remove_reference_t<T>>;
-		
+		consteval inline bool valid_component_fn() noexcept
+		{
+			const bool result = !std::is_const_v<T> &&
+								!std::is_volatile_v<T>;
+
+			static_assert(!std::is_const_v<T>, "Component allowed to be const qualified only in query context.");
+
+			static_assert(!std::is_volatile_v<T>, "Component allowed to be volatile qualified only in query context.");
+
+			return result;
+		}
+
+		template<typename T>
+		concept valid_component = valid_component_fn<T>();
+
+
 		template<typename Fn, size_t offset, typename...Params>
 		consteval inline bool ensure_fallthrough_parameters_fn() noexcept
 		{
@@ -63,6 +79,8 @@ namespace kawa
 			return result;
 		}
 
+		template<typename Fn, size_t offset, typename...Params>
+		concept ensure_fallthrough_parameters = ensure_fallthrough_parameters_fn<Fn, offset, Params...>();
 
 		template<typename Fn, size_t index, typename T, typename...Params>
 		consteval inline bool ensure_parameter_fn() noexcept
@@ -74,12 +92,34 @@ namespace kawa
 			return result;
 		}
 
-		template<typename Fn, size_t offset, typename...Params>
-		concept ensure_fallthrough_parameters = ensure_fallthrough_parameters_fn<Fn, offset, Params...>();
-			
-
 		template<typename Fn, size_t index, typename T, typename...Params>
 		concept ensure_parameter = ensure_parameter_fn<Fn, index, T, Params...>();
+
+		template<typename Fn, size_t index, typename...Params>
+		consteval inline bool ensure_entity_id_fn() noexcept
+		{
+			constexpr bool result = std::is_same_v<typename meta::function_traits<Fn>::template arg_at<sizeof...(Params) + index>, kawa::ecs::entity_id>;
+
+			static_assert(result, "Unexpected query function parameter, expected kawa::ecs::entity_id.");
+
+			return result;
+		}
+
+		template<typename Fn, size_t index, typename...Params>
+		concept ensure_entity_id = ensure_entity_id_fn<Fn, index, Params...>();
+
+		template<typename Fn, size_t index, typename...Params>
+		consteval inline bool ensure_component_info_fn() noexcept
+		{
+			constexpr bool result = std::is_same_v<typename meta::function_traits<Fn>::template arg_at<sizeof...(Params) + index>, kawa::ecs::component_info>;
+
+			static_assert(result, "Unexpected query function parameter, expected kawa::ecs::component_info.");
+
+			return result;
+		}
+
+		template<typename Fn, size_t index, typename...Params>
+		concept ensure_component_info = ensure_component_info_fn<Fn, index, Params...>();
 
 	};
 }

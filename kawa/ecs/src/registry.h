@@ -10,7 +10,7 @@
 #include "internal/poly_storage.h"
 #include "internal/entity_manager.h"
 #include "internal/storage_manager.h"
-#include "internal/par_task_engine.h"
+#include "internal/thread_pool.h"
 
 namespace kawa
 {
@@ -18,28 +18,27 @@ namespace ecs
 {
 class registry
 {
+public:
 	struct specification
 	{
-		size_t max_entity_count = 256;
-		size_t max_component_types = 256;
-		size_t thread_count = (std::thread::hardware_concurrency() / 2);
-		std::string debug_name = "unnamed";
+		std::string name = "unnamed";
+		size_t max_entity_count = 512;
+		size_t max_component_types = 32;
 	};
 
-public:
 	inline registry(const registry::specification& reg_spec) noexcept
 		: _spec(reg_spec)
-		, _query_par_engine(reg_spec.thread_count)
-		, _storage_manager(reg_spec.max_component_types, reg_spec.max_entity_count, reg_spec.debug_name)
-		, _entity_manager(reg_spec.max_entity_count, reg_spec.debug_name)
-	{		
-	}
+		, _storage_manager(reg_spec.max_component_types, reg_spec.max_entity_count, reg_spec.name)
+		, _entity_manager(reg_spec.max_entity_count, reg_spec.name)
+	{}
 
-	inline registry(const registry& other) noexcept = delete;
+	inline registry(const registry& other) noexcept = default;
+	inline registry(registry&& other) noexcept = default;
 
-	inline ~registry() noexcept
-	{
-	}
+	inline registry& operator=(const registry& reg) noexcept = default;
+	inline registry& operator=(registry&& reg) noexcept = default;
+
+	inline ~registry() noexcept {};
 
 public:
 	inline const specification& get_specs() const noexcept
@@ -47,12 +46,29 @@ public:
 		return _spec;
 	}
 
+	inline std::string get_full_name() const noexcept
+	{
+		if (_owned_by_world)
+		{
+			return std::format("{}::{}", _world_name, _spec.name);
+		}
+
+		return _spec.name;
+
+	}
+
+	inline void clear() noexcept
+	{
+		_entity_manager.clear();
+		_storage_manager.clear();
+	}
+
 	inline entity_id entity() noexcept
 	{			
 		return _entity_manager.get_new();
 	}
 
-	template<meta::non_cv...Args >
+	template<meta::valid_component...Args>
 	inline entity_id entity_with(Args&&...args) noexcept
 	{
 		entity_id id = entity();
@@ -62,19 +78,19 @@ public:
 		return id;
 	}
 
-	template<meta::non_cv T, typename...Args>
+	template<meta::valid_component T, typename...Args>
 		requires std::constructible_from<T, Args...> 
 	inline T& emplace(entity_id entity, Args&&...args) noexcept
 	{
 		KAWA_DEBUG_EXPAND(_validate_entity(entity));
-		KAWA_ASSERT_MSG(_entity_manager.alive(entity), "[ {} ] kawa::ecs::registry::emplace<{}> on non alive entity", _spec.debug_name, meta::type_name<T>());
+		KAWA_ASSERT_MSG(_entity_manager.alive(entity), "[ {} ] kawa::ecs::registry::emplace<{}> on non alive entity", get_full_name(), meta::type_name<T>());
 
 		static_assert(!std::is_const_v<T>, "component can not have const qualifier");	   
 
 		return _storage_manager.emplace<T>(entity, std::forward<Args>(args)...);
 	}
 
-	template<meta::non_cv...Args>
+	template<meta::valid_component...Args>
 	inline void erase(entity_id entity) noexcept
 	{
 		KAWA_DEBUG_EXPAND(_validate_entity(entity));
@@ -82,7 +98,7 @@ public:
 		_storage_manager.erase<Args...>(entity);
 	}
 
-	template<meta::non_cv...Args>
+	template<meta::valid_component...Args>
 	inline bool has(entity_id entity) noexcept
 	{
 		KAWA_DEBUG_EXPAND(_validate_entity(entity));
@@ -90,7 +106,7 @@ public:
 		return _storage_manager.has<Args...>(entity);
 	}
 
-	template<meta::non_cv T>
+	template<meta::valid_component T>
 	inline T& get(entity_id entity) noexcept
 	{
 		KAWA_DEBUG_EXPAND(_validate_entity(entity));
@@ -98,7 +114,7 @@ public:
 		return _storage_manager.get<T>(entity);
 	}
 
-	template<meta::non_cv T>
+	template<meta::valid_component T>
 	inline T* get_if_has(entity_id entity) noexcept
 	{
 		KAWA_DEBUG_EXPAND(_validate_entity(entity));
@@ -111,7 +127,7 @@ public:
 		return _storage_manager.get_if_has<T>(entity);
 	}
 
-	template<meta::non_cv...Args>
+	template<meta::valid_component...Args>
 		requires ((std::copyable<Args> && ...))
 	inline void copy(entity_id from, entity_id to) noexcept
 	{
@@ -121,7 +137,7 @@ public:
 		_storage_manager.copy<Args...>(from, to);
 	}
 
-	template<meta::non_cv...Args>
+	template<meta::valid_component...Args>
 		requires ((std::movable<Args> && ...))
 	inline void move(entity_id from, entity_id to) noexcept
 	{
@@ -173,6 +189,13 @@ public:
 		}
 	}
 
+	inline bool alive(entity_id entity) noexcept
+	{
+		KAWA_DEBUG_EXPAND(_validate_entity(entity));
+
+		return _storage_manager.alive(entity);
+	}
+
 	inline bool is_valid(entity_id e) noexcept
 	{									
 		if (e == nullent || e >= _spec.max_entity_count)
@@ -184,18 +207,18 @@ public:
 	}
 		   
 	template<typename Fn>
-		requires meta::ensure_parameter<Fn, 0, entity_id>
+		requires meta::ensure_entity_id<Fn, 0>
 	inline void on_construct(Fn&& fn)
 	{
 		using ft = typename meta::function_traits<Fn>;
 
 		using second_arg = typename ft::template arg_at<1>;
 
-		_storage_manager.get_storage<std::remove_cvref_t<second_arg>>().set_on_create(std::forward<Fn>(fn));
+		_storage_manager.get_storage<std::remove_cvref_t<second_arg>>().set_on_construct(std::forward<Fn>(fn));
 	}
 
 	template<typename Fn>
-		requires meta::ensure_parameter<Fn, 0, entity_id>
+		requires meta::ensure_entity_id<Fn, 0>
 	inline void on_destroy(Fn&& fn)
 	{
 		using ft = typename meta::function_traits<Fn>;
@@ -205,7 +228,7 @@ public:
 		_storage_manager.get_storage<std::remove_cvref_t<second_arg>>().set_on_destroy(std::forward<Fn>(fn));
 	}
 
-	template<meta::non_cv...Args>
+	template<meta::valid_component...Args>
 	inline void ensure() noexcept
 	{
 		_storage_manager.ensure<Args...>();
@@ -214,7 +237,7 @@ public:
 	template<typename Fn, typename...Params>
 		requires 
 		(
-			meta::ensure_parameter<Fn, 0, component_info>&&
+			meta::ensure_component_info<Fn, 0>&&
 			meta::ensure_fallthrough_parameters<Fn, 1, Params...>
 		)
 	inline void query_with_info(entity_id entity, Fn&& fn, Params&&...params) noexcept
@@ -237,8 +260,8 @@ public:
 	template<typename Fn, typename...Params>
 		requires 
 		(	
-			meta::ensure_parameter<Fn, 0, entity_id> && 
-			meta::ensure_parameter<Fn, 1, component_info>&&
+			meta::ensure_entity_id<Fn, 0> && 
+			meta::ensure_component_info<Fn, 1> &&
 			meta::ensure_fallthrough_parameters<Fn, 2, Params...>
 		)
 	inline void query_self_info(Fn&& fn, Params&&...params) noexcept
@@ -247,6 +270,7 @@ public:
 		{
 			for (storage_id s : _storage_manager)
 			{
+
 				auto& storage = _storage_manager.get_storage(s);
 
 				if (storage.has(entity))
@@ -285,9 +309,9 @@ public:
 
 	template<typename Fn, typename...Params>
 		requires meta::ensure_fallthrough_parameters<Fn, 0, Params...>
-	inline void query_par(Fn&& fn, Params&&...params) noexcept
+	inline void query_par(thread_pool& exec, Fn&& fn, Params&&...params) noexcept
 	{
-		KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_par inside another parallel query body", _spec.debug_name);
+		KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_par inside another parallel query body", get_full_name());
 
 		_query_par_running = true;
 
@@ -295,7 +319,7 @@ public:
 
 		if constexpr (query_traits::args_count == query_traits::params_count)
 		{
-			_query_par_engine.task
+			exec.task
 			(
 				[&](size_t start, size_t end)
 				{
@@ -311,6 +335,7 @@ public:
 		{
 			_query_par_impl<Fn, typename query_traits::no_params_args_tuple>
 				(
+					exec,
 					std::forward<Fn>(fn),
 					std::make_index_sequence<query_traits::no_params_args_count>{},
 					std::make_index_sequence<query_traits::require_count>{},
@@ -325,7 +350,7 @@ public:
 	template<typename Fn, typename...Params>
 		requires
 		(
-			meta::ensure_parameter<Fn, 0, entity_id>&&
+			meta::ensure_entity_id<Fn, 0>&&
 			meta::ensure_fallthrough_parameters<Fn, 1, Params...>
 		)
 	inline void query_self(Fn&& fn, Params&&...params) noexcept
@@ -355,25 +380,25 @@ public:
 	template<typename Fn, typename...Params>
 		requires
 		(
-			meta::ensure_parameter<Fn, 0, entity_id>&&
+			meta::ensure_entity_id<Fn, 0>&&
 			meta::ensure_fallthrough_parameters<Fn, 1, Params...>
 		)
-	inline void query_self_par(Fn&& fn, Params&&...params) noexcept
+	inline void query_self_par(thread_pool& exec, Fn&& fn, Params&&...params) noexcept
 	{
-		KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_self_par inside another parallel query body", _spec.debug_name);
+		KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_self_par inside another parallel query body", get_full_name());
 		_query_par_running = true;
 
 		using query_traits = typename meta::query_traits<Fn, 1, Params...>;
 
 		if constexpr (query_traits::args_count == query_traits::params_count)
 		{
-			_query_par_engine.task
+			exec.task
 			(
 				[&](size_t start, size_t end)
 				{
 					for (size_t i = start; i < end; i++)
 					{
-						fn(_entity_manager.get_at_uncheked(i), std::forward<Params>(params)...);
+						fn(_entity_manager[i], std::forward<Params>(params)...);
 					}
 				}
 				, _entity_manager.occupied()
@@ -383,6 +408,7 @@ public:
 		{
 			_query_self_par_impl<Fn, typename query_traits::no_params_args_tuple>
 				(
+					exec,
 					std::forward<Fn>(fn),
 					std::make_index_sequence<query_traits::no_params_args_count>{},
 					std::make_index_sequence<query_traits::require_count>{},
@@ -491,7 +517,7 @@ private:
 	}
 
 	template<typename Fn, typename args_tuple, size_t...args_idxs, size_t...req_idxs, size_t...opt_idxs, typename...Params>
-	inline void _query_par_impl(Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
+	inline void _query_par_impl(thread_pool& exec, Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 	{
 		constexpr size_t args_count = sizeof...(args_idxs);
 		constexpr size_t opt_count = sizeof...(opt_idxs);
@@ -517,7 +543,7 @@ private:
 				}
 			}
 
-			_query_par_engine.task
+			exec.task
 			(
 				[&](size_t start, size_t end)
 				{
@@ -527,7 +553,7 @@ private:
 						{
 							for (size_t i = start; i < end; ++i)
 							{
-								entity_id e = smallest->get_at(i);
+								entity_id e = smallest->get(i);
 								if ((require_storages[req_idxs]->has(e) && ...))
 								{
 									fn
@@ -546,7 +572,7 @@ private:
 		}
 		else
 		{
-			_query_par_engine.task
+			exec.task
 			(
 				[&](size_t start, size_t end)
 				{
@@ -556,7 +582,7 @@ private:
 						{
 							for (size_t i = start; i < end; ++i)
 							{
-								entity_id e = _entity_manager.get_at_uncheked(i);
+								entity_id e = _entity_manager[i];
 								fn
 								(
 									std::forward<Params>(params)...,
@@ -641,7 +667,7 @@ private:
 	}
 
 	template<typename Fn, typename args_tuple, size_t...args_idxs, size_t...req_idxs, size_t...opt_idxs, typename...Params>
-	inline void _query_self_par_impl(Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
+	inline void _query_self_par_impl(thread_pool& exec, Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 	{
 		constexpr size_t args_count = sizeof...(args_idxs);
 		constexpr size_t opt_count = sizeof...(opt_idxs);
@@ -667,7 +693,7 @@ private:
 				}
 			}
 
-			_query_par_engine.task
+			exec.task
 			(
 				[&](size_t start, size_t end)
 				{
@@ -677,7 +703,7 @@ private:
 						{
 							for (size_t i = start; i < end; ++i)
 							{
-								entity_id e = smallest->get_at(i);
+								entity_id e = smallest->get(i);
 								if ((require_storages[req_idxs]->has(e) && ...))
 								{
 									fn
@@ -697,7 +723,7 @@ private:
 		}
 		else
 		{
-			_query_par_engine.task
+			exec.task
 			(
 				[&](size_t start, size_t end)
 				{
@@ -707,7 +733,7 @@ private:
 						{
 							for (size_t i = start; i < end; ++i)
 							{
-								entity_id e = _entity_manager.get_at_uncheked(i);
+								entity_id e = _entity_manager[i];
 								fn														
 								(
 									e,
@@ -774,6 +800,13 @@ private:
 			);
 		}
 	}
+private:
+	inline void _make_owned(const std::string& world_name) noexcept
+	{
+		_owned_by_world = true;
+		_world_name = world_name;
+	}
+
 
 private:
 	template<typename args_tuple, size_t...I, size_t N>
@@ -807,7 +840,6 @@ private:
 			if constexpr (std::is_reference_v<T>)
 			{
 				using CleanT = std::remove_reference_t<T>;
-
 				auto key = get_id<CleanT>();
 				out[id] = &_storage_manager.get_storage(key);
 				id++;
@@ -826,23 +858,24 @@ private:
 
 	inline void _validate_entity(entity_id id) const noexcept
 	{
-		KAWA_ASSERT_MSG(id != nullent, "[ {} ]: nullent usage", _spec.debug_name);
-		KAWA_ASSERT_MSG(id < _spec.max_entity_count, "[ {} ]: invalid entity_id [ {} ] usage", _spec.debug_name, id);
+		KAWA_ASSERT_MSG(id != nullent, "[ {} ]: nullent usage", get_full_name());
+		KAWA_ASSERT_MSG(id < _spec.max_entity_count, "[ {} ]: invalid entity_id [ {} ] usage", get_full_name(), id);
 	}
 
 	inline void _validate_storage(storage_id id) const noexcept
 	{
-		KAWA_ASSERT_MSG(id < _spec.max_component_types, "[ {} ]: maximum amoount of unique component types reached [ {} ], increase max_component_types", _spec.debug_name, _spec.max_component_types);
+		KAWA_ASSERT_MSG(id < _spec.max_component_types, "[ {} ]: maximum amoount of unique component types reached [ {} ], increase max_component_types", get_full_name(), _spec.max_component_types);
 	}
 
 private:
-	specification		_spec;
+	specification				_spec;
 
-	_::entity_manager			_entity_manager;
 	_::storage_manager			_storage_manager;
+	_::entity_manager			_entity_manager;
+	std::string					_world_name;
 
-	par_task_engine				_query_par_engine;
 	bool						_query_par_running = false;
+	bool						_owned_by_world = false;
 
 private:
 	static inline storage_id	_storage_id_counter = 0;		

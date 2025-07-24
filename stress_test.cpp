@@ -44,16 +44,16 @@ int main()
 {   
     registry reg
     ({
+        .name = "registry::stress_test",
         .max_entity_count = ENTITY_COUNT,
-        .max_component_types = 16,
-        .thread_count = 8,     
-        .debug_name = "registry::stress_test",
+        .max_component_types = 16
+        //.thread_count = 8,     
     });
 
     std::vector<entity_id> entities;
     entities.reserve(ENTITY_COUNT);
 
-    std::cout << "kawa::ecs::registry will use " << reg.get_specs().thread_count << " threads for parallel queries" << '\n';
+    //std::cout << "kawa::ecs::registry will use " << reg.get_specs().thread_count << " threads for parallel queries" << '\n';
     std::cout << '\n';
 
     benchmark
@@ -187,7 +187,7 @@ int main()
         "Parallel Vec3 + Velocity + optional Score",
         [&]()
         {
-            reg.query_par
+            reg.query
             (
                 [](Vec3& pos, Velocity& vel, Score* score)
                 {
@@ -222,7 +222,7 @@ int main()
         [&]()
         {
             float dt = 0.016f;
-            reg.query_par
+            reg.query
             (
                 [](float dt, Vec3& pos, Velocity& vel)
                 {
@@ -258,7 +258,7 @@ int main()
         [&]()
         {
             int tick = 42;
-            reg.query_par
+            reg.query
             (
                 [](int tick, AI* ai)
                 {
@@ -291,7 +291,7 @@ int main()
         [&]()
         {
             std::atomic<size_t> count = 0;
-            reg.query_par
+            reg.query
             (
                 [&](Health* hp)
                 {
@@ -324,7 +324,7 @@ int main()
         [&]()
         {
             float mult = 1.5f;
-            reg.query_par
+            reg.query
             (
                 [](float mult, Score& s, Tag* tag)
                 {
@@ -361,7 +361,7 @@ int main()
         {
             float scale = 2.0f;
             float offset = 0.5f;
-            reg.query_par
+            reg.query
             (
                 [](float scale, float offset, Velocity& vel)
                 {
@@ -396,7 +396,7 @@ int main()
         [&]()
         {
             std::atomic<size_t> count = 0;
-            reg.query_par
+            reg.query
             (
                 [&](Enemy&, Vec3& pos)
                 {

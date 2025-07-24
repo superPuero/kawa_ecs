@@ -1,3 +1,6 @@
+#ifndef KAWA_ECS
+#define KAWA_ECS
+
 #ifndef KAWA_ECS_REGISTRY
 #define KAWA_ECS_REGISTRY
 
@@ -366,6 +369,21 @@ namespace kawa
 	}
 }
 #endif 
+#ifndef KAWA_ECS_BASE
+#define KAWA_ECS_BASE
+
+namespace kawa
+{
+	namespace ecs
+	{
+		using entity_id = size_t;
+		using storage_id = size_t;
+		using component_info = meta::type_info;
+	}
+}
+
+#endif 
+
 #ifndef KAWA_META_ECS_EXT
 #define	KAWA_META_ECS_EXT
 
@@ -416,9 +434,23 @@ namespace kawa
 			constexpr static size_t optional_count = meta::ptr_type_count<no_params_args_tuple>::value;
 		};
 
+
 		template<typename T>
-		concept non_cv = !std::is_const_v<std::remove_reference_t<T>> &&
-			!std::is_volatile_v<std::remove_reference_t<T>>;
+		consteval inline bool valid_component_fn() noexcept
+		{
+			const bool result = !std::is_const_v<T> &&
+				!std::is_volatile_v<T>;
+
+			static_assert(!std::is_const_v<T>, "Component allowed to be const qualified only in query context.");
+
+			static_assert(!std::is_volatile_v<T>, "Component allowed to be volatile qualified only in query context.");
+
+			return result;
+		}
+
+		template<typename T>
+		concept valid_component = valid_component_fn<T>();
+
 
 		template<typename Fn, size_t offset, typename...Params>
 		consteval inline bool ensure_fallthrough_parameters_fn() noexcept
@@ -430,6 +462,8 @@ namespace kawa
 			return result;
 		}
 
+		template<typename Fn, size_t offset, typename...Params>
+		concept ensure_fallthrough_parameters = ensure_fallthrough_parameters_fn<Fn, offset, Params...>();
 
 		template<typename Fn, size_t index, typename T, typename...Params>
 		consteval inline bool ensure_parameter_fn() noexcept
@@ -441,12 +475,34 @@ namespace kawa
 			return result;
 		}
 
-		template<typename Fn, size_t offset, typename...Params>
-		concept ensure_fallthrough_parameters = ensure_fallthrough_parameters_fn<Fn, offset, Params...>();
-
-
 		template<typename Fn, size_t index, typename T, typename...Params>
 		concept ensure_parameter = ensure_parameter_fn<Fn, index, T, Params...>();
+
+		template<typename Fn, size_t index, typename...Params>
+		consteval inline bool ensure_entity_id_fn() noexcept
+		{
+			constexpr bool result = std::is_same_v<typename meta::function_traits<Fn>::template arg_at<sizeof...(Params) + index>, kawa::ecs::entity_id>;
+
+			static_assert(result, "Unexpected query function parameter, expected kawa::ecs::entity_id.");
+
+			return result;
+		}
+
+		template<typename Fn, size_t index, typename...Params>
+		concept ensure_entity_id = ensure_entity_id_fn<Fn, index, Params...>();
+
+		template<typename Fn, size_t index, typename...Params>
+		consteval inline bool ensure_component_info_fn() noexcept
+		{
+			constexpr bool result = std::is_same_v<typename meta::function_traits<Fn>::template arg_at<sizeof...(Params) + index>, kawa::ecs::component_info>;
+
+			static_assert(result, "Unexpected query function parameter, expected kawa::ecs::component_info.");
+
+			return result;
+		}
+
+		template<typename Fn, size_t index, typename...Params>
+		concept ensure_component_info = ensure_component_info_fn<Fn, index, Params...>();
 
 	};
 }
@@ -459,21 +515,6 @@ namespace kawa
 #include <cstring> 
 
 #include <iostream>
-#ifndef KAWA_ECS_BASE
-#define KAWA_ECS_BASE
-
-namespace kawa
-{
-	namespace ecs
-	{
-		using entity_id = size_t;
-		using storage_id = size_t;
-		using component_info = meta::type_info;
-	}
-}
-
-#endif 
-
 
 namespace kawa
 {
@@ -481,8 +522,6 @@ namespace kawa
 	{
 		namespace _
 		{
-			struct empty_poly_storage_type_t {};
-
 			class poly_storage
 			{
 				using delete_fn_t = void(*)(void*);
@@ -490,8 +529,8 @@ namespace kawa
 				using copy_fn_t = void(*)(void*, void*, size_t, size_t);
 				using move_fn_t = void(*)(void*, void*, size_t, size_t);
 
-				using on_destroy_invoke_fn_t = void(*)(void*, void*, entity_id);
-				using on_create_invoke_fn_t = void(*)(void*, void*, entity_id);
+				using handler_invoke_fn_t = void(*)(void*, void*, entity_id);
+				using copy_handler_fn_t = void(*)(void*, void*&);
 
 			public:
 				inline poly_storage() noexcept = default;
@@ -501,37 +540,55 @@ namespace kawa
 					, _capacity(other._capacity)
 					, _occupied(other._occupied)
 				{
-					KAWA_ASSERT_MSG(other._populated, "poly_storage::poly_storage(const poly_storage& other) on unpopulated storage");
-
-					if (!other._storage)
+					if (other._populated)
 					{
-						_storage = ::operator new(_type_info.size * _capacity, _type_info.alignment);
-					}
-
-					_delete_fn = other._delete_fn;
-					_erase_fn = other._erase_fn;
-					_copy_fn = other._copy_fn;
-					_move_fn = other._move_fn;
-
-					_mask = new bool[_capacity];
-					std::copy(other._mask, other._mask + _capacity, _mask);
-
-					_connector = new size_t[_capacity];
-					std::copy(other._connector, other._connector + _capacity, _connector);
-
-					_r_connector = new size_t[_capacity];
-					std::copy(other._r_connector, other._r_connector + _capacity, _r_connector);
-
-					for (size_t i = 0; i < _occupied; i++)
-					{
-						size_t id = _connector[i];
-						if (_mask[id])
+						if (other._storage)
 						{
-							_copy_fn(other._storage, _storage, id, id);
+							_storage = ::operator new(_type_info.size * _capacity, _type_info.alignment);
 						}
-					}
 
-					_populated = true;
+						_delete_fn = other._delete_fn;
+						_erase_fn = other._erase_fn;
+						_copy_fn = other._copy_fn;
+						_move_fn = other._move_fn;
+
+						if (other._on_construct_fn)
+						{
+							_on_construct_fn_copy_fn = other._on_construct_fn_copy_fn;
+							_on_construct_fn_copy_fn(other._on_construct_fn, _on_construct_fn);
+							_on_construct_invoke_fn = other._on_construct_invoke_fn;
+							_on_construct_delete_fn = other._on_construct_delete_fn;
+						}
+
+						if (other._on_destroy_fn)
+						{
+							_on_destroy_fn_copy_fn = other._on_destroy_fn_copy_fn;
+							_on_destroy_fn_copy_fn(other._on_destroy_fn, _on_destroy_fn);
+							_on_destroy_invoke_fn = other._on_destroy_invoke_fn;
+							_on_destroy_delete_fn = other._on_destroy_delete_fn;
+						}
+
+						_mask = new bool[_capacity];
+						std::copy(other._mask, other._mask + _capacity, _mask);
+
+						_connector = new size_t[_capacity];
+						std::copy(other._connector, other._connector + _capacity, _connector);
+
+						_r_connector = new size_t[_capacity];
+						std::copy(other._r_connector, other._r_connector + _capacity, _r_connector);
+
+						for (size_t i = 0; i < _occupied; i++)
+						{
+							size_t id = _connector[i];
+							if (_mask[id])
+							{
+								_copy_fn(other._storage, _storage, id, id);
+								_on_construct(id);
+							}
+						}
+
+						_populated = true;
+					}
 				}
 
 				inline poly_storage(poly_storage&& other) noexcept
@@ -546,6 +603,12 @@ namespace kawa
 					, _erase_fn(other._erase_fn)
 					, _copy_fn(other._copy_fn)
 					, _move_fn(other._move_fn)
+					, _on_construct_fn(other._on_construct_fn)
+					, _on_destroy_fn(other._on_destroy_fn)
+					, _on_construct_invoke_fn(other._on_construct_invoke_fn)
+					, _on_destroy_invoke_fn(other._on_destroy_invoke_fn)
+					, _on_construct_delete_fn(other._on_construct_delete_fn)
+					, _on_destroy_delete_fn(other._on_destroy_delete_fn)
 					, _populated(other._populated)
 				{
 					KAWA_ASSERT_MSG(other._populated, "poly_storage::poly_storage(poly_storage&& other) on unpopulated storage");
@@ -553,35 +616,108 @@ namespace kawa
 					other._populated = false;
 				}
 
+				inline poly_storage& operator=(const poly_storage& other) noexcept
+				{
+					if (this != &other)
+					{
+						this->clear();
+
+						if (other._populated)
+						{
+							_type_info = other._type_info;
+							_capacity = other._capacity;
+							_occupied = other._occupied;
+
+							if (other._storage)
+							{
+								_storage = ::operator new(_type_info.size * _capacity, _type_info.alignment);
+							}
+
+							_delete_fn = other._delete_fn;
+							_erase_fn = other._erase_fn;
+							_copy_fn = other._copy_fn;
+							_move_fn = other._move_fn;
+
+							if (other._on_construct_fn)
+							{
+								_on_construct_fn_copy_fn = other._on_construct_fn_copy_fn;
+								_on_construct_fn_copy_fn(other._on_construct_fn, _on_construct_fn);
+								_on_construct_invoke_fn = other._on_construct_invoke_fn;
+								_on_construct_delete_fn = other._on_construct_delete_fn;
+							}
+
+							if (other._on_destroy_fn)
+							{
+								_on_destroy_fn_copy_fn = other._on_destroy_fn_copy_fn;
+								_on_destroy_fn_copy_fn(other._on_destroy_fn, _on_destroy_fn);
+								_on_destroy_invoke_fn = other._on_destroy_invoke_fn;
+								_on_destroy_delete_fn = other._on_destroy_delete_fn;
+							}
+
+							_mask = new bool[_capacity];
+							std::copy(other._mask, other._mask + _capacity, _mask);
+
+							_connector = new size_t[_capacity];
+							std::copy(other._connector, other._connector + _capacity, _connector);
+
+							_r_connector = new size_t[_capacity];
+							std::copy(other._r_connector, other._r_connector + _capacity, _r_connector);
+
+							for (size_t i = 0; i < _occupied; i++)
+							{
+								size_t id = _connector[i];
+								if (_mask[id])
+								{
+									_copy_fn(other._storage, _storage, id, id);
+									_on_construct(id);
+								}
+							}
+
+							this->_populated = true;
+						}
+					}
+
+					return *this;
+				}
+
+				inline poly_storage& operator=(poly_storage&& other) noexcept
+				{
+					if (this != &other)
+					{
+						this->clear();
+
+						if (other._populated)
+						{
+							_type_info = other._type_info;
+							_capacity = other._capacity;
+							_occupied = other._occupied;
+							_storage = other._storage;
+							_mask = other._mask;
+							_connector = other._connector;
+							_r_connector = other._r_connector;
+							_delete_fn = other._delete_fn;
+							_erase_fn = other._erase_fn;
+							_copy_fn = other._copy_fn;
+							_move_fn = other._move_fn;
+							_on_construct_fn = other._on_construct_fn;
+							_on_destroy_fn = other._on_destroy_fn;
+							_on_construct_invoke_fn = other._on_construct_invoke_fn;
+							_on_destroy_invoke_fn = other._on_destroy_invoke_fn;
+							_on_construct_delete_fn = other._on_construct_delete_fn;
+							_on_destroy_delete_fn = other._on_destroy_delete_fn;
+
+							other._populated = false;
+
+							this->_populated = true;
+						}
+					}
+
+					return *this;
+				}
+
 				inline ~poly_storage() noexcept
 				{
-					if (_populated)
-					{
-						for (size_t i = 0; i < _occupied; i++)
-						{
-							size_t id = _connector[i];
-
-							_on_destory(id);
-							_erase_fn(_storage, id);
-						}
-
-						_delete_fn(_storage);
-
-						delete[] _mask;
-						delete[] _connector;
-						delete[] _r_connector;
-
-						if (_on_create_fn)
-						{
-							_on_create_delete_fn(_on_create_fn);
-						}
-						if (_on_destroy_fn)
-						{
-							_on_destroy_delete_fn(_on_destroy_fn);
-						}
-
-						_populated = false;
-					}
+					clear();
 				}
 
 
@@ -663,6 +799,40 @@ namespace kawa
 					return this;
 				}
 
+				inline void clear() noexcept
+				{
+					if (_populated)
+					{
+						for (size_t i = 0; i < _occupied; i++)
+						{
+							size_t id = _connector[i];
+
+							_on_destory(id);
+							_erase_fn(_storage, id);
+						}
+
+						_delete_fn(_storage);
+
+						if (_on_construct_fn)
+						{
+							_on_construct_delete_fn(_on_construct_fn);
+							_on_construct_fn = nullptr;
+						}
+
+						if (_on_destroy_fn)
+						{
+							_on_destroy_delete_fn(_on_destroy_fn);
+							_on_destroy_fn = nullptr;
+						}
+
+						delete[] _mask;
+						delete[] _connector;
+						delete[] _r_connector;
+
+						_populated = false;
+					}
+				}
+
 			public:
 				inline const meta::type_info& get_type_info() const noexcept
 				{
@@ -697,7 +867,7 @@ namespace kawa
 
 						T& val = *(new (static_cast<T*>(_storage) + index) T(std::forward<Args>(args)...));
 
-						_on_create(index);
+						_on_construct(index);
 
 						return val;
 					}
@@ -709,12 +879,10 @@ namespace kawa
 
 						return *(new (static_cast<T*>(_storage) + index) T(std::forward<Args>(args)...));
 					}
-
-
 				}
 
 				template<typename T>
-				inline T& get(size_t index) const  noexcept
+				inline T& get(size_t index) const noexcept
 				{
 					KAWA_ASSERT_MSG(_populated, "poly_storage<->::get on non populated storage");
 					KAWA_ASSERT_MSG(_validate_index(index), "poly_storage<{}>::get out of bounds index [ {} ] access", _type_info.name, index);
@@ -754,6 +922,7 @@ namespace kawa
 				}
 
 				template<typename T>
+				//requires (!std::is_pointer_v<T>)
 				inline std::enable_if_t<!std::is_pointer_v<T>, T&> get_defer(size_t index) const noexcept
 				{
 					KAWA_ASSERT_MSG(_populated, "poly_storage<->::get on non populated storage");
@@ -803,14 +972,14 @@ namespace kawa
 							cell = true;
 
 							_copy_fn(_storage, _storage, from, to);
-							_on_create(to);
+							_on_construct(to);
 						}
 						else
 						{
 							_on_destory(to);
 							_erase_fn(_storage, to);
 							_copy_fn(_storage, _storage, from, to);
-							_on_create(to);
+							_on_construct(to);
 
 						}
 					}
@@ -835,104 +1004,87 @@ namespace kawa
 							cell = true;
 
 							_move_fn(_storage, _storage, from, to);
-							_on_create(to);
+							_on_construct(to);
 						}
 						else
 						{
 							_on_destory(to);
 							_erase_fn(_storage, to);
 							_move_fn(_storage, _storage, from, to);
-							_on_create(to);
+							_on_construct(to);
 						}
 
 						_on_destory(from);
 						erase(from);
-
 					}
 				}
 
 				template<typename Fn>
-				inline void set_on_create(Fn&& fn)noexcept
+				inline void set_on_construct(Fn&& fn) noexcept
 				{
-					if (!_on_create_fn)
+					if (_on_construct_fn)
 					{
-						_on_create_fn = new Fn(std::forward<Fn>(fn));
-						_on_create_delete_fn =
-							[](void* fn)
-							{
-								delete static_cast<Fn*>(fn);
-							};
-
-						_on_create_invoke_fn =
-							[](void* fn, void* data, entity_id entity)
-							{
-								using T = typename meta::template function_traits<Fn>::template arg_at<1>;
-								static_cast<Fn*>(fn)->operator()(entity, *(static_cast<std::remove_reference_t<T>*>(data) + entity));
-							};
+						_on_construct_delete_fn(_on_construct_fn);
 					}
-					else
-					{
-						_on_create_delete_fn(_on_create_fn);
-						_on_create_fn = new Fn(std::forward<Fn>(fn));
-						_on_create_delete_fn =
-							[](void* fn)
-							{
-								delete static_cast<Fn*>(fn);
-							};
 
-						_on_create_invoke_fn =
-							[](void* fn, void* data, entity_id entity)
-							{
-								using T = typename meta::template function_traits<Fn>::template arg_at<1>;
-								static_cast<Fn*>(fn)->operator()(entity, *(static_cast<std::remove_reference_t<T>*>(data) + entity));
-							};
-					}
+					_on_construct_fn = new Fn(std::forward<Fn>(fn));
+
+					_on_construct_delete_fn =
+						[](void* fn)
+						{
+							delete static_cast<Fn*>(fn);
+						};
+
+					_on_construct_invoke_fn =
+						[](void* fn, void* data, entity_id entity)
+						{
+							using T = typename meta::template function_traits<Fn>::template arg_at<1>;
+							static_cast<Fn*>(fn)->operator()(entity, *(static_cast<std::remove_reference_t<T>*>(data) + entity));
+						};
+
+					_on_construct_fn_copy_fn =
+						[](void* from, void*& to)
+						{
+							to = new Fn(*static_cast<Fn*>(from));
+						};
 				}
 
 				template<typename Fn>
-				inline void set_on_destroy(Fn&& fn)noexcept
+				inline void set_on_destroy(Fn&& fn) noexcept
 				{
-					if (!_on_destroy_fn)
+					if (_on_destroy_fn)
 					{
-						_on_destroy_fn = new Fn(std::forward<Fn>(fn));
-						_on_destroy_delete_fn =
-							[](void* fn)
-							{
-								delete static_cast<Fn*>(fn);
-							};
-
-						_on_destroy_invoke_fn =
-							[](void* fn, void* data, entity_id entity)
-							{
-								using T = typename meta::template function_traits<Fn>::template arg_at<1>;
-								static_cast<Fn*>(fn)->operator()(entity, *(static_cast<std::remove_reference_t<T>*>(data) + entity));
-							};
+						_on_destroy_delete_fn(_on_construct_fn);
 					}
-					else
-					{
-						_on_destroy_delete_fn(_on_create_fn);
-						_on_destroy_fn = new Fn(std::forward<Fn>(fn));
-						_on_destroy_delete_fn =
-							[](void* fn)
-							{
-								delete static_cast<Fn*>(fn);
-							};
 
-						_on_destroy_invoke_fn =
-							[](void* fn, void* data, entity_id entity)
-							{
-								using T = typename meta::template function_traits<Fn>::template arg_at<1>;
-								static_cast<Fn*>(fn)->operator()(entity, *(static_cast<std::remove_reference_t<T>*>(data) + entity));
-							};
-					}
+					_on_destroy_fn = new Fn(std::forward<Fn>(fn));
+
+					_on_destroy_delete_fn =
+						[](void* fn)
+						{
+							delete static_cast<Fn*>(fn);
+						};
+
+					_on_destroy_invoke_fn =
+						[](void* fn, void* data, entity_id entity)
+						{
+							using T = typename meta::template function_traits<Fn>::template arg_at<1>;
+							static_cast<Fn*>(fn)->operator()(entity, *(static_cast<std::remove_reference_t<T>*>(data) + entity));
+						};
+
+					_on_destroy_fn_copy_fn =
+						[](void* from, void*& to)
+						{
+							to = new Fn(*static_cast<Fn*>(from));
+						};
 				}
 
-				inline void remove_on_create() noexcept
+				inline void remove_on_construct() noexcept
 				{
-					if (_on_create_fn)
+					if (_on_construct_fn)
 					{
-						_on_create_delete_fn(_on_create_fn);
-						_on_create_fn = nullptr;
+						_on_construct_delete_fn(_on_construct_fn);
+						_on_construct_fn = nullptr;
 					}
 				}
 
@@ -940,17 +1092,17 @@ namespace kawa
 				{
 					if (_on_destroy_fn)
 					{
-						_on_destroy_delete_fn(_on_create_fn);
+						_on_destroy_delete_fn(_on_construct_fn);
 						_on_destroy_fn = nullptr;
 					}
 				}
 
-				inline bool has_on_create() noexcept
+				inline bool has_on_construct() const noexcept
 				{
-					return _on_create_fn;
+					return _on_construct_fn;
 				}
 
-				inline bool has_on_destroy() noexcept
+				inline bool has_on_destroy() const noexcept
 				{
 					return _on_destroy_fn;
 				}
@@ -960,17 +1112,17 @@ namespace kawa
 					return _populated;
 				}
 
-				inline size_t* begin() noexcept
+				inline entity_id* begin() noexcept
 				{
 					return _connector;
 				}
 
-				inline size_t* end() noexcept
+				inline entity_id* end() noexcept
 				{
 					return _connector + _occupied;
 				}
 
-				inline size_t get_at(size_t i) noexcept
+				inline entity_id get(size_t i) const noexcept
 				{
 					return _connector[i];
 				}
@@ -985,6 +1137,11 @@ namespace kawa
 					return _capacity;
 				}
 
+				inline entity_id operator[](size_t i) const noexcept
+				{
+					return get(i);
+				}
+
 			private:
 				inline void _on_destory(entity_id id) noexcept
 				{
@@ -994,11 +1151,11 @@ namespace kawa
 					}
 				}
 
-				inline void _on_create(entity_id id) noexcept
+				inline void _on_construct(entity_id id) noexcept
 				{
-					if (_on_create_fn)
+					if (_on_construct_fn)
 					{
-						_on_create_invoke_fn(_on_create_fn, _storage, id);
+						_on_construct_invoke_fn(_on_construct_fn, _storage, id);
 					}
 				}
 
@@ -1027,7 +1184,7 @@ namespace kawa
 				size_t			_capacity = 0;
 				void* _storage = nullptr;
 				bool* _mask = nullptr;
-				size_t* _connector = nullptr;
+				entity_id* _connector = nullptr;
 				size_t* _r_connector = nullptr;
 				size_t			_occupied = 0;
 
@@ -1036,18 +1193,21 @@ namespace kawa
 				copy_fn_t		_copy_fn = nullptr;
 				move_fn_t		_move_fn = nullptr;
 
-				void* _on_create_fn = nullptr;
+				void* _on_construct_fn = nullptr;
 				void* _on_destroy_fn = nullptr;
 
-				on_create_invoke_fn_t	_on_create_invoke_fn = nullptr;
-				on_destroy_invoke_fn_t	_on_destroy_invoke_fn = nullptr;
+				handler_invoke_fn_t	_on_construct_invoke_fn = nullptr;
+				handler_invoke_fn_t	_on_destroy_invoke_fn = nullptr;
 
-				delete_fn_t				_on_create_delete_fn = nullptr;
-				delete_fn_t				_on_destroy_delete_fn = nullptr;
+				copy_handler_fn_t	_on_construct_fn_copy_fn = nullptr;
+				copy_handler_fn_t	_on_destroy_fn_copy_fn = nullptr;
 
-				bool			_populated = false;
+				delete_fn_t	 _on_construct_delete_fn = nullptr;
+				delete_fn_t	 _on_destroy_delete_fn = nullptr;
 
 				meta::type_info	_type_info;
+
+				bool _populated = false;
 			};
 		}
 	}
@@ -1058,14 +1218,10 @@ namespace kawa
 
 #include <limits>
 
-
 namespace kawa
 {
 	namespace ecs
 	{
-
-		typedef size_t entity_id;
-
 		constexpr inline entity_id nullent = std::numeric_limits<entity_id>::max();
 
 		namespace _
@@ -1084,6 +1240,27 @@ namespace kawa
 					_r_entity_entries = new size_t[capacity]();
 				};
 
+				entity_manager(const entity_manager& other)
+					: _debug_name(other._debug_name)
+					, _capacity(other._capacity)
+					, _occupied(other._occupied)
+					, _free_list_size(other._free_list_size)
+					, _entries_counter(other._entries_counter)
+				{
+
+					_free_list = new size_t[_capacity];
+					std::copy(other._free_list, other._free_list + _capacity, _free_list);
+
+					_entity_mask = new bool[_capacity];
+					std::copy(other._entity_mask, other._entity_mask + _capacity, _entity_mask);
+
+					_entity_entries = new size_t[_capacity];
+					std::copy(other._entity_entries, other._entity_entries + _capacity, _entity_entries);
+
+					_r_entity_entries = new size_t[_capacity];
+					std::copy(other._r_entity_entries, other._r_entity_entries + _capacity, _r_entity_entries);
+				};
+
 				~entity_manager()
 				{
 					delete[] _free_list;
@@ -1091,6 +1268,48 @@ namespace kawa
 					delete[] _entity_entries;
 					delete[] _r_entity_entries;
 				};
+
+				inline entity_manager& operator=(const entity_manager& other)
+				{
+					if (this != &other)
+					{
+						delete[] _free_list;
+						delete[] _entity_mask;
+						delete[] _entity_entries;
+						delete[] _r_entity_entries;
+
+						_debug_name = other._debug_name;
+						_capacity = other._capacity;
+						_occupied = other._occupied;
+						_free_list_size = other._free_list_size;
+						_entries_counter = other._entries_counter;
+
+						_free_list = new size_t[_capacity];
+						std::copy(other._free_list, other._free_list + _capacity, _free_list);
+
+						_entity_mask = new bool[_capacity];
+						std::copy(other._entity_mask, other._entity_mask + _capacity, _entity_mask);
+
+						_entity_entries = new size_t[_capacity];
+						std::copy(other._entity_entries, other._entity_entries + _capacity, _entity_entries);
+
+						_r_entity_entries = new size_t[_capacity];
+						std::copy(other._r_entity_entries, other._r_entity_entries + _capacity, _r_entity_entries);
+
+					}
+					return *this;
+				}
+
+			public:
+
+				inline void clear() noexcept
+				{
+					std::fill(_entity_mask, _entity_mask + _capacity, false);
+					_free_list_size = 0;
+					_entries_counter = 0;
+					_occupied = 0;
+
+				}
 
 				inline entity_id get_new() noexcept
 				{
@@ -1157,8 +1376,10 @@ namespace kawa
 					}
 				}
 
-				inline entity_id get_at_uncheked(size_t i) noexcept
+				inline entity_id get(size_t i) noexcept
 				{
+					KAWA_ASSERT_MSG(i < _occupied, "[ {} ]: index out of bounds [ {} ]", _debug_name, i);
+
 					return _entity_entries[i];
 				}
 
@@ -1177,6 +1398,10 @@ namespace kawa
 					return _occupied;
 				}
 
+				inline entity_id operator[](size_t i) noexcept
+				{
+					return get(i);
+				}
 
 			private:
 				inline void _validate_entity(entity_id id) const noexcept
@@ -1216,18 +1441,13 @@ namespace kawa
 {
 	namespace ecs
 	{
-
-		using storage_id = size_t;
-
-		using component_info = meta::type_info;
-
 		namespace _
 		{
 			class storage_manager
 			{
 
 			public:
-				storage_manager(size_t storage_capacity, size_t capacity, const std::string& debug_name)
+				inline storage_manager(size_t storage_capacity, size_t capacity, const std::string& debug_name) noexcept
 					: _debug_name(debug_name)
 				{
 					_capacity = capacity;
@@ -1239,7 +1459,42 @@ namespace kawa
 					_r_entries = new size_t[storage_capacity]();
 				};
 
-				~storage_manager()
+				inline storage_manager(const storage_manager& other) noexcept
+					: _debug_name(other._debug_name)
+					, _capacity(other._capacity)
+					, _storage_capacity(other._storage_capacity)
+					, _entries_counter(other._entries_counter)
+				{
+					_storages = new poly_storage[_storage_capacity];
+					std::copy(other._storages, other._storages + _storage_capacity, _storages);
+
+					_mask = new bool[_storage_capacity];
+					std::copy(other._mask, other._mask + _storage_capacity, _mask);
+
+					_entries = new size_t[_storage_capacity];
+					std::copy(other._entries, other._entries + _storage_capacity, _entries);
+
+					_r_entries = new size_t[_storage_capacity];
+					std::copy(other._r_entries, other._r_entries + _storage_capacity, _r_entries);
+				};
+
+				inline storage_manager(storage_manager&& other) noexcept
+					: _debug_name(std::move(other._debug_name))
+					, _capacity(other._capacity)
+					, _storage_capacity(other._storage_capacity)
+					, _entries_counter(other._entries_counter)
+					, _storages(other._storages)
+					, _mask(other._mask)
+					, _entries(other._entries)
+					, _r_entries(other._r_entries)
+				{
+					other._storages = nullptr;
+					other._mask = nullptr;
+					other._entries = nullptr;
+					other._r_entries = nullptr;
+				};
+
+				inline ~storage_manager() noexcept
 				{
 					delete[] _storages;
 					delete[] _mask;
@@ -1247,31 +1502,79 @@ namespace kawa
 					delete[] _r_entries;
 				};
 
-			public:
-				template<typename T>
-				inline storage_id get_id() noexcept
+				inline storage_manager& operator=(const storage_manager& other) noexcept
 				{
-					static storage_id id = register_id<T>();
-					return id;
+					if (this != &other)
+					{
+						delete[] _storages;
+						delete[] _mask;
+						delete[] _entries;
+						delete[] _r_entries;
+
+						_debug_name = other._debug_name;
+						_capacity = other._capacity;
+						_storage_capacity = other._storage_capacity;
+						_entries_counter = other._entries_counter;
+
+						_storages = new poly_storage[_storage_capacity];
+						std::copy(other._storages, other._storages + _storage_capacity, _storages);
+
+						_mask = new bool[_storage_capacity];
+						std::copy(other._mask, other._mask + _storage_capacity, _mask);
+
+						_entries = new size_t[_storage_capacity];
+						std::copy(other._entries, other._entries + _storage_capacity, _entries);
+
+						_r_entries = new size_t[_storage_capacity];
+						std::copy(other._r_entries, other._r_entries + _storage_capacity, _r_entries);
+					}
+					return *this;
+				}
+
+				inline storage_manager& operator=(storage_manager&& other) noexcept
+				{
+					if (this != &other)
+					{
+						delete[] _storages;
+						delete[] _mask;
+						delete[] _entries;
+						delete[] _r_entries;
+
+						_debug_name = std::move(other._debug_name);
+						_capacity = other._capacity;
+						_storage_capacity = other._storage_capacity;
+						_entries_counter = other._entries_counter;
+						_storages = other._storages;
+						_mask = other._mask;
+						_entries = other._entries;
+						_r_entries = other._r_entries;
+
+						other._storages = nullptr;
+						other._mask = nullptr;
+						other._entries = nullptr;
+						other._r_entries = nullptr;
+					}
+					return *this;
+				}
+
+			public:
+				inline void clear() noexcept
+				{
+					std::fill(_mask, _mask + _storage_capacity, false);
+
+					for (size_t i = 0; i < _entries_counter; i++)
+					{
+						_storages[_entries[i]].clear();
+					}
+
+					_entries_counter = 0;
+					_entries_counter = 0;
 				}
 
 				template<typename T>
-				inline storage_id register_id() noexcept
+				inline storage_id get_id() noexcept
 				{
-					storage_id id = _id_counter++;
-
-					KAWA_DEBUG_EXPAND(_validate_storage(id));
-
-					poly_storage& storage = _storages[id];
-					storage.populate<T>(_capacity);
-
-					_mask[id] = true;
-
-					size_t idx = _entries_counter++;
-					_entries[idx] = id;
-					_r_entries[id] = idx;
-					_occupied++;
-
+					static storage_id id = _id_counter++;
 					return id;
 				}
 
@@ -1284,17 +1587,7 @@ namespace kawa
 				template<typename T, typename...Args>
 				inline T& emplace(size_t index, Args&&...args) noexcept
 				{
-					storage_id id = get_id<T>();
-
-					bool& storage_cell = _mask[id];
-
-					poly_storage& storage = _storages[id];
-
-					if (!storage_cell)
-					{
-						storage.template populate<T>(_capacity);
-						storage_cell = true;
-					}
+					poly_storage& storage = get_storage<T>();
 
 					return storage.emplace<T>(index, std::forward<Args>(args)...);
 				}
@@ -1304,12 +1597,8 @@ namespace kawa
 				{
 					(([this, index]<typename T>()
 					{
-						storage_id id = get_id<T>();
 
-						if (_mask[id])
-						{
-							_storages[id].erase(index);
-						}
+						get_storage<T>().erase(index);
 					}.template operator() < Args > ()), ...);
 				}
 
@@ -1318,40 +1607,20 @@ namespace kawa
 				{
 					return (([this, index]<typename T>()
 					{
-						storage_id id = get_id<T>();
-
-						if (_mask[id])
-						{
-							return _storages[id].has(index);
-						}
-						return false;
+						return get_storage<T>().has(index);
 					}.template operator() < Args > ()) && ...);
 				}
 
 				template<typename T>
 				inline T& get(size_t index) noexcept
 				{
-					storage_id id = get_id<T>();
-
-					if (_mask[id])
-					{
-						return _storages[id].get<T>(index);
-					}
-
-					KAWA_ASSERT(false);
+					return get_storage<T>().template get<T>(index);
 				}
 
 				template<typename T>
 				inline T* get_if_has(size_t index) noexcept
 				{
-					storage_id id = get_id<T>();
-
-					if (!_mask[id])
-					{
-						return nullptr;
-					}
-
-					return _storages[id].get_if_has<T>(index);
+					return get_storage<T>().template get_if_has<T>(index);
 				}
 
 				template<typename...Args>
@@ -1361,14 +1630,7 @@ namespace kawa
 					{
 						(([this, from, to]<typename T>()
 						{
-							storage_id id = get_id<T>();
-
-							if (!_mask[id])
-							{
-								return;
-							}
-
-							_storages[id].copy(from, to);
+							get_storage<T>().copy(from, to);
 
 						}. template operator() < Args > ()), ...);
 					}
@@ -1381,14 +1643,7 @@ namespace kawa
 					{
 						(([this, from, to]<typename T>()
 						{
-							storage_id id = get_id<T>();
-
-							if (!_mask[id])
-							{
-								return;
-							}
-
-							_storages[id].move(from, to);
+							get_storage<T>().move(from, to);
 
 						}. template operator() < Args > ()), ...);
 					}
@@ -1399,31 +1654,47 @@ namespace kawa
 					return _mask[e];
 				}
 
-				inline void remove_unchecked(storage_id id) noexcept
-				{
-					size_t idx = _r_entries[id];
+				//inline void remove_unchecked(storage_id id) noexcept
+				//{
+				//	size_t idx = _r_entries[id];
 
-					_entries[idx] = _entries[--_entries_counter];
-					_r_entries[_entries[_entries_counter]] = idx;
-				}
+				//	_entries[idx] = _entries[--_entries_counter];
+				//	_r_entries[_entries[_entries_counter]] = idx;
+				//}
 
-				inline void remove(storage_id id) noexcept
-				{
-					bool& cell = _mask[id];
+				//inline void remove(storage_id id) noexcept
+				//{
+				//	bool& cell = _mask[id];
 
-					if (cell)
-					{
-						size_t idx = _r_entries[id];
+				//	if (cell)
+				//	{
+				//		size_t idx = _r_entries[id];
 
-						_entries[idx] = _entries[--_entries_counter];
-						_r_entries[_entries[_entries_counter]] = idx;
-					}
-				}
+				//		_entries[idx] = _entries[--_entries_counter];
+				//		_r_entries[_entries[_entries_counter]] = idx;
+				//	}
+				//}
 
 				template<typename T>
 				inline poly_storage& get_storage() noexcept
 				{
-					return _storages[get_id<T>()];
+					storage_id id = get_id<T>();
+
+					poly_storage& storage = _storages[id];
+					bool& cell = _mask[id];
+
+					if (!cell)
+					{
+						storage.populate<T>(_capacity);
+						cell = true;
+
+						size_t idx = _entries_counter++;
+
+						_entries[idx] = id;
+						_r_entries[id] = idx;
+					}
+
+					return storage;
 				}
 
 				inline poly_storage& get_storage(storage_id id) noexcept
@@ -1438,12 +1709,12 @@ namespace kawa
 
 				inline storage_id* end() noexcept
 				{
-					return _entries + _occupied;
+					return _entries + _entries_counter;
 				}
 
 				inline size_t occupied() noexcept
 				{
-					return _occupied;
+					return _entries_counter;
 				}
 
 			private:
@@ -1460,7 +1731,6 @@ namespace kawa
 				size_t* _r_entries = nullptr;
 				size_t			_entries_counter = 0;
 
-				size_t			_occupied = 0;
 				size_t			_capacity = 0;
 				size_t			_storage_capacity = 0;
 
@@ -1474,9 +1744,8 @@ namespace kawa
 }
 
 #endif 
-
-#ifndef KAWA_PAR_TASK_ENGINE
-#define	KAWA_PAR_TASK_ENGINE
+#ifndef KAWA_THREAD_POOL
+#define	KAWA_THREAD_POOL
 
 #include <thread>
 #include <barrier>
@@ -1485,10 +1754,10 @@ namespace kawa
 
 namespace kawa
 {
-	class par_task_engine
+	class thread_pool
 	{
 	public:
-		par_task_engine(size_t thread_count)
+		thread_pool(size_t thread_count)
 			: _barrier(thread_count + 1)
 			, _thread_count(thread_count)
 			, _tasks_count(thread_count + 1)
@@ -1516,7 +1785,7 @@ namespace kawa
 									return;
 								}
 
-								_query(_starts[i], _ends[i]);
+								_task(_starts[i], _ends[i]);
 
 								_barrier.arrive_and_wait();
 							}
@@ -1525,7 +1794,7 @@ namespace kawa
 				}
 			}
 		}
-		~par_task_engine()
+		~thread_pool()
 		{
 			_should_join = true;
 
@@ -1547,11 +1816,13 @@ namespace kawa
 			delete[] _starts;
 		}
 
+
+
 	public:
 		template<typename Fn>
 		void task(Fn&& query, size_t work)
 		{
-			_query = std::forward<Fn>(query);
+			_task = std::forward<Fn>(query);
 
 			size_t chunk_work = work / _tasks_count;
 
@@ -1570,7 +1841,7 @@ namespace kawa
 
 			_barrier.arrive_and_wait();
 
-			_query(_starts[_tasks_count - 1], _ends[_tasks_count - 1]);
+			_task(_starts[_tasks_count - 1], _ends[_tasks_count - 1]);
 
 			_barrier.arrive_and_wait();
 		}
@@ -1585,7 +1856,7 @@ namespace kawa
 		size_t* _ends = nullptr;
 
 
-		std::function<void(size_t, size_t)>		_query = nullptr;
+		std::function<void(size_t, size_t)>		_task = nullptr;
 		std::barrier<>							_barrier;
 
 		bool									_should_join = false;
@@ -1593,35 +1864,33 @@ namespace kawa
 
 }
 #endif
-
 namespace kawa
 {
 	namespace ecs
 	{
 		class registry
 		{
+		public:
 			struct specification
 			{
-				size_t max_entity_count = 256;
-				size_t max_component_types = 256;
-				size_t thread_count = (std::thread::hardware_concurrency() / 2);
-				std::string debug_name = "unnamed";
+				std::string name = "unnamed";
+				size_t max_entity_count = 512;
+				size_t max_component_types = 32;
 			};
 
-		public:
 			inline registry(const registry::specification& reg_spec) noexcept
 				: _spec(reg_spec)
-				, _query_par_engine(reg_spec.thread_count)
-				, _storage_manager(reg_spec.max_component_types, reg_spec.max_entity_count, reg_spec.debug_name)
-				, _entity_manager(reg_spec.max_entity_count, reg_spec.debug_name)
-			{
-			}
+				, _storage_manager(reg_spec.max_component_types, reg_spec.max_entity_count, reg_spec.name)
+				, _entity_manager(reg_spec.max_entity_count, reg_spec.name)
+			{}
 
-			inline registry(const registry& other) noexcept = delete;
+			inline registry(const registry& other) noexcept = default;
+			inline registry(registry&& other) noexcept = default;
 
-			inline ~registry() noexcept
-			{
-			}
+			inline registry& operator=(const registry& reg) noexcept = default;
+			inline registry& operator=(registry&& reg) noexcept = default;
+
+			inline ~registry() noexcept {};
 
 		public:
 			inline const specification& get_specs() const noexcept
@@ -1629,12 +1898,29 @@ namespace kawa
 				return _spec;
 			}
 
+			inline std::string get_full_name() const noexcept
+			{
+				if (_owned_by_world)
+				{
+					return std::format("{}::{}", _world_name, _spec.name);
+				}
+
+				return _spec.name;
+
+			}
+
+			inline void clear() noexcept
+			{
+				_entity_manager.clear();
+				_storage_manager.clear();
+			}
+
 			inline entity_id entity() noexcept
 			{
 				return _entity_manager.get_new();
 			}
 
-			template<meta::non_cv...Args >
+			template<meta::valid_component...Args>
 			inline entity_id entity_with(Args&&...args) noexcept
 			{
 				entity_id id = entity();
@@ -1644,19 +1930,19 @@ namespace kawa
 				return id;
 			}
 
-			template<meta::non_cv T, typename...Args>
+			template<meta::valid_component T, typename...Args>
 				requires std::constructible_from<T, Args...>
 			inline T& emplace(entity_id entity, Args&&...args) noexcept
 			{
 				KAWA_DEBUG_EXPAND(_validate_entity(entity));
-				KAWA_ASSERT_MSG(_entity_manager.alive(entity), "[ {} ] kawa::ecs::registry::emplace<{}> on non alive entity", _spec.debug_name, meta::type_name<T>());
+				KAWA_ASSERT_MSG(_entity_manager.alive(entity), "[ {} ] kawa::ecs::registry::emplace<{}> on non alive entity", get_full_name(), meta::type_name<T>());
 
 				static_assert(!std::is_const_v<T>, "component can not have const qualifier");
 
 				return _storage_manager.emplace<T>(entity, std::forward<Args>(args)...);
 			}
 
-			template<meta::non_cv...Args>
+			template<meta::valid_component...Args>
 			inline void erase(entity_id entity) noexcept
 			{
 				KAWA_DEBUG_EXPAND(_validate_entity(entity));
@@ -1664,7 +1950,7 @@ namespace kawa
 				_storage_manager.erase<Args...>(entity);
 			}
 
-			template<meta::non_cv...Args>
+			template<meta::valid_component...Args>
 			inline bool has(entity_id entity) noexcept
 			{
 				KAWA_DEBUG_EXPAND(_validate_entity(entity));
@@ -1672,7 +1958,7 @@ namespace kawa
 				return _storage_manager.has<Args...>(entity);
 			}
 
-			template<meta::non_cv T>
+			template<meta::valid_component T>
 			inline T& get(entity_id entity) noexcept
 			{
 				KAWA_DEBUG_EXPAND(_validate_entity(entity));
@@ -1680,7 +1966,7 @@ namespace kawa
 				return _storage_manager.get<T>(entity);
 			}
 
-			template<meta::non_cv T>
+			template<meta::valid_component T>
 			inline T* get_if_has(entity_id entity) noexcept
 			{
 				KAWA_DEBUG_EXPAND(_validate_entity(entity));
@@ -1693,7 +1979,7 @@ namespace kawa
 				return _storage_manager.get_if_has<T>(entity);
 			}
 
-			template<meta::non_cv...Args>
+			template<meta::valid_component...Args>
 				requires ((std::copyable<Args> && ...))
 			inline void copy(entity_id from, entity_id to) noexcept
 			{
@@ -1703,7 +1989,7 @@ namespace kawa
 				_storage_manager.copy<Args...>(from, to);
 			}
 
-			template<meta::non_cv...Args>
+			template<meta::valid_component...Args>
 				requires ((std::movable<Args> && ...))
 			inline void move(entity_id from, entity_id to) noexcept
 			{
@@ -1755,6 +2041,13 @@ namespace kawa
 				}
 			}
 
+			inline bool alive(entity_id entity) noexcept
+			{
+				KAWA_DEBUG_EXPAND(_validate_entity(entity));
+
+				return _storage_manager.alive(entity);
+			}
+
 			inline bool is_valid(entity_id e) noexcept
 			{
 				if (e == nullent || e >= _spec.max_entity_count)
@@ -1766,18 +2059,18 @@ namespace kawa
 			}
 
 			template<typename Fn>
-				requires meta::ensure_parameter<Fn, 0, entity_id>
+				requires meta::ensure_entity_id<Fn, 0>
 			inline void on_construct(Fn&& fn)
 			{
 				using ft = typename meta::function_traits<Fn>;
 
 				using second_arg = typename ft::template arg_at<1>;
 
-				_storage_manager.get_storage<std::remove_cvref_t<second_arg>>().set_on_create(std::forward<Fn>(fn));
+				_storage_manager.get_storage<std::remove_cvref_t<second_arg>>().set_on_construct(std::forward<Fn>(fn));
 			}
 
 			template<typename Fn>
-				requires meta::ensure_parameter<Fn, 0, entity_id>
+				requires meta::ensure_entity_id<Fn, 0>
 			inline void on_destroy(Fn&& fn)
 			{
 				using ft = typename meta::function_traits<Fn>;
@@ -1787,7 +2080,7 @@ namespace kawa
 				_storage_manager.get_storage<std::remove_cvref_t<second_arg>>().set_on_destroy(std::forward<Fn>(fn));
 			}
 
-			template<meta::non_cv...Args>
+			template<meta::valid_component...Args>
 			inline void ensure() noexcept
 			{
 				_storage_manager.ensure<Args...>();
@@ -1796,7 +2089,7 @@ namespace kawa
 			template<typename Fn, typename...Params>
 				requires
 			(
-				meta::ensure_parameter<Fn, 0, component_info>&&
+				meta::ensure_component_info<Fn, 0>&&
 				meta::ensure_fallthrough_parameters<Fn, 1, Params...>
 				)
 				inline void query_with_info(entity_id entity, Fn&& fn, Params&&...params) noexcept
@@ -1819,8 +2112,8 @@ namespace kawa
 			template<typename Fn, typename...Params>
 				requires
 			(
-				meta::ensure_parameter<Fn, 0, entity_id>&&
-				meta::ensure_parameter<Fn, 1, component_info>&&
+				meta::ensure_entity_id<Fn, 0>&&
+				meta::ensure_component_info<Fn, 1>&&
 				meta::ensure_fallthrough_parameters<Fn, 2, Params...>
 				)
 				inline void query_self_info(Fn&& fn, Params&&...params) noexcept
@@ -1829,6 +2122,7 @@ namespace kawa
 				{
 					for (storage_id s : _storage_manager)
 					{
+
 						auto& storage = _storage_manager.get_storage(s);
 
 						if (storage.has(entity))
@@ -1867,9 +2161,9 @@ namespace kawa
 
 			template<typename Fn, typename...Params>
 				requires meta::ensure_fallthrough_parameters<Fn, 0, Params...>
-			inline void query_par(Fn&& fn, Params&&...params) noexcept
+			inline void query_par(thread_pool& exec, Fn&& fn, Params&&...params) noexcept
 			{
-				KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_par inside another parallel query body", _spec.debug_name);
+				KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_par inside another parallel query body", get_full_name());
 
 				_query_par_running = true;
 
@@ -1877,7 +2171,7 @@ namespace kawa
 
 				if constexpr (query_traits::args_count == query_traits::params_count)
 				{
-					_query_par_engine.task
+					exec.task
 					(
 						[&](size_t start, size_t end)
 						{
@@ -1893,6 +2187,7 @@ namespace kawa
 				{
 					_query_par_impl<Fn, typename query_traits::no_params_args_tuple>
 						(
+							exec,
 							std::forward<Fn>(fn),
 							std::make_index_sequence<query_traits::no_params_args_count>{},
 							std::make_index_sequence<query_traits::require_count>{},
@@ -1907,7 +2202,7 @@ namespace kawa
 			template<typename Fn, typename...Params>
 				requires
 			(
-				meta::ensure_parameter<Fn, 0, entity_id>&&
+				meta::ensure_entity_id<Fn, 0>&&
 				meta::ensure_fallthrough_parameters<Fn, 1, Params...>
 				)
 				inline void query_self(Fn&& fn, Params&&...params) noexcept
@@ -1937,25 +2232,25 @@ namespace kawa
 			template<typename Fn, typename...Params>
 				requires
 			(
-				meta::ensure_parameter<Fn, 0, entity_id>&&
+				meta::ensure_entity_id<Fn, 0>&&
 				meta::ensure_fallthrough_parameters<Fn, 1, Params...>
 				)
-				inline void query_self_par(Fn&& fn, Params&&...params) noexcept
+				inline void query_self_par(thread_pool& exec, Fn&& fn, Params&&...params) noexcept
 			{
-				KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_self_par inside another parallel query body", _spec.debug_name);
+				KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_self_par inside another parallel query body", get_full_name());
 				_query_par_running = true;
 
 				using query_traits = typename meta::query_traits<Fn, 1, Params...>;
 
 				if constexpr (query_traits::args_count == query_traits::params_count)
 				{
-					_query_par_engine.task
+					exec.task
 					(
 						[&](size_t start, size_t end)
 						{
 							for (size_t i = start; i < end; i++)
 							{
-								fn(_entity_manager.get_at_uncheked(i), std::forward<Params>(params)...);
+								fn(_entity_manager[i], std::forward<Params>(params)...);
 							}
 						}
 						, _entity_manager.occupied()
@@ -1965,6 +2260,7 @@ namespace kawa
 				{
 					_query_self_par_impl<Fn, typename query_traits::no_params_args_tuple>
 						(
+							exec,
 							std::forward<Fn>(fn),
 							std::make_index_sequence<query_traits::no_params_args_count>{},
 							std::make_index_sequence<query_traits::require_count>{},
@@ -2073,7 +2369,7 @@ namespace kawa
 			}
 
 			template<typename Fn, typename args_tuple, size_t...args_idxs, size_t...req_idxs, size_t...opt_idxs, typename...Params>
-			inline void _query_par_impl(Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
+			inline void _query_par_impl(thread_pool& exec, Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 			{
 				constexpr size_t args_count = sizeof...(args_idxs);
 				constexpr size_t opt_count = sizeof...(opt_idxs);
@@ -2099,7 +2395,7 @@ namespace kawa
 						}
 					}
 
-					_query_par_engine.task
+					exec.task
 					(
 						[&](size_t start, size_t end)
 						{
@@ -2109,7 +2405,7 @@ namespace kawa
 								{
 									for (size_t i = start; i < end; ++i)
 									{
-										entity_id e = smallest->get_at(i);
+										entity_id e = smallest->get(i);
 										if ((require_storages[req_idxs]->has(e) && ...))
 										{
 											fn
@@ -2128,7 +2424,7 @@ namespace kawa
 				}
 				else
 				{
-					_query_par_engine.task
+					exec.task
 					(
 						[&](size_t start, size_t end)
 						{
@@ -2138,7 +2434,7 @@ namespace kawa
 								{
 									for (size_t i = start; i < end; ++i)
 									{
-										entity_id e = _entity_manager.get_at_uncheked(i);
+										entity_id e = _entity_manager[i];
 										fn
 										(
 											std::forward<Params>(params)...,
@@ -2223,7 +2519,7 @@ namespace kawa
 			}
 
 			template<typename Fn, typename args_tuple, size_t...args_idxs, size_t...req_idxs, size_t...opt_idxs, typename...Params>
-			inline void _query_self_par_impl(Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
+			inline void _query_self_par_impl(thread_pool& exec, Fn&& fn, std::index_sequence<args_idxs...>, std::index_sequence<req_idxs...>, std::index_sequence<opt_idxs...>, Params&&...params) noexcept
 			{
 				constexpr size_t args_count = sizeof...(args_idxs);
 				constexpr size_t opt_count = sizeof...(opt_idxs);
@@ -2249,7 +2545,7 @@ namespace kawa
 						}
 					}
 
-					_query_par_engine.task
+					exec.task
 					(
 						[&](size_t start, size_t end)
 						{
@@ -2259,7 +2555,7 @@ namespace kawa
 								{
 									for (size_t i = start; i < end; ++i)
 									{
-										entity_id e = smallest->get_at(i);
+										entity_id e = smallest->get(i);
 										if ((require_storages[req_idxs]->has(e) && ...))
 										{
 											fn
@@ -2279,7 +2575,7 @@ namespace kawa
 				}
 				else
 				{
-					_query_par_engine.task
+					exec.task
 					(
 						[&](size_t start, size_t end)
 						{
@@ -2289,7 +2585,7 @@ namespace kawa
 								{
 									for (size_t i = start; i < end; ++i)
 									{
-										entity_id e = _entity_manager.get_at_uncheked(i);
+										entity_id e = _entity_manager[i];
 										fn
 										(
 											e,
@@ -2356,6 +2652,13 @@ namespace kawa
 					);
 				}
 			}
+		private:
+			inline void _make_owned(const std::string& world_name) noexcept
+			{
+				_owned_by_world = true;
+				_world_name = world_name;
+			}
+
 
 		private:
 			template<typename args_tuple, size_t...I, size_t N>
@@ -2389,7 +2692,6 @@ namespace kawa
 					if constexpr (std::is_reference_v<T>)
 					{
 						using CleanT = std::remove_reference_t<T>;
-
 						auto key = get_id<CleanT>();
 						out[id] = &_storage_manager.get_storage(key);
 						id++;
@@ -2408,23 +2710,24 @@ namespace kawa
 
 			inline void _validate_entity(entity_id id) const noexcept
 			{
-				KAWA_ASSERT_MSG(id != nullent, "[ {} ]: nullent usage", _spec.debug_name);
-				KAWA_ASSERT_MSG(id < _spec.max_entity_count, "[ {} ]: invalid entity_id [ {} ] usage", _spec.debug_name, id);
+				KAWA_ASSERT_MSG(id != nullent, "[ {} ]: nullent usage", get_full_name());
+				KAWA_ASSERT_MSG(id < _spec.max_entity_count, "[ {} ]: invalid entity_id [ {} ] usage", get_full_name(), id);
 			}
 
 			inline void _validate_storage(storage_id id) const noexcept
 			{
-				KAWA_ASSERT_MSG(id < _spec.max_component_types, "[ {} ]: maximum amoount of unique component types reached [ {} ], increase max_component_types", _spec.debug_name, _spec.max_component_types);
+				KAWA_ASSERT_MSG(id < _spec.max_component_types, "[ {} ]: maximum amoount of unique component types reached [ {} ], increase max_component_types", get_full_name(), _spec.max_component_types);
 			}
 
 		private:
-			specification		_spec;
+			specification				_spec;
 
-			_::entity_manager			_entity_manager;
 			_::storage_manager			_storage_manager;
+			_::entity_manager			_entity_manager;
+			std::string					_world_name;
 
-			par_task_engine				_query_par_engine;
 			bool						_query_par_running = false;
+			bool						_owned_by_world = false;
 
 		private:
 			static inline storage_id	_storage_id_counter = 0;
@@ -2434,3 +2737,5 @@ namespace kawa
 }
 
 #endif 
+
+#endif

@@ -29,6 +29,27 @@ public:
 		_r_entity_entries = new size_t[capacity]();
 	};
 
+	entity_manager(const entity_manager& other)
+		: _debug_name(other._debug_name)
+		, _capacity(other._capacity)
+		, _occupied(other._occupied)
+		, _free_list_size(other._free_list_size)
+		, _entries_counter(other._entries_counter)
+	{
+
+		_free_list = new size_t[_capacity];
+		std::copy(other._free_list, other._free_list + _capacity, _free_list);
+
+		_entity_mask = new bool[_capacity];
+		std::copy(other._entity_mask, other._entity_mask + _capacity, _entity_mask);
+
+		_entity_entries = new size_t[_capacity];
+		std::copy(other._entity_entries, other._entity_entries + _capacity, _entity_entries);
+
+		_r_entity_entries = new size_t[_capacity];
+		std::copy(other._r_entity_entries, other._r_entity_entries + _capacity, _r_entity_entries);
+	};
+
 	~entity_manager()
 	{
 		delete[] _free_list;
@@ -36,6 +57,48 @@ public:
 		delete[] _entity_entries;
 		delete[] _r_entity_entries;
 	};
+
+	inline entity_manager& operator=(const entity_manager& other)
+	{
+		if (this != &other)
+		{
+			delete[] _free_list;
+			delete[] _entity_mask;
+			delete[] _entity_entries;
+			delete[] _r_entity_entries;
+
+			_debug_name = other._debug_name;
+			_capacity = other._capacity;
+			_occupied = other._occupied;
+			_free_list_size = other._free_list_size;
+			_entries_counter = other._entries_counter;
+
+			_free_list = new size_t[_capacity];
+			std::copy(other._free_list, other._free_list + _capacity, _free_list);
+
+			_entity_mask = new bool[_capacity];
+			std::copy(other._entity_mask, other._entity_mask + _capacity, _entity_mask);
+
+			_entity_entries = new size_t[_capacity];
+			std::copy(other._entity_entries, other._entity_entries + _capacity, _entity_entries);
+
+			_r_entity_entries = new size_t[_capacity];
+			std::copy(other._r_entity_entries, other._r_entity_entries + _capacity, _r_entity_entries);
+
+		}
+		return *this;
+	}
+
+public:
+
+	inline void clear() noexcept
+	{
+		std::fill(_entity_mask, _entity_mask + _capacity, false);
+		_free_list_size = 0;
+		_entries_counter = 0;
+		_occupied = 0;
+		
+	}
 
 	inline entity_id get_new() noexcept
 	{
@@ -102,8 +165,10 @@ public:
 		}
 	}
 
-	inline entity_id get_at_uncheked(size_t i) noexcept
+	inline entity_id get(size_t i) noexcept
 	{
+		KAWA_ASSERT_MSG(i < _occupied, "[ {} ]: index out of bounds [ {} ]", _debug_name, i);
+
 		return _entity_entries[i];
 	}
 
@@ -122,6 +187,10 @@ public:
 		return _occupied;
 	}
 
+	inline entity_id operator[](size_t i) noexcept
+	{
+		return get(i);
+	}
 
 private:
 	inline void _validate_entity(entity_id id) const noexcept

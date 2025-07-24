@@ -1,5 +1,5 @@
-#ifndef KAWA_PAR_TASK_ENGINE
-#define	KAWA_PAR_TASK_ENGINE
+#ifndef KAWA_THREAD_POOL
+#define	KAWA_THREAD_POOL
 
 #include <thread>
 #include <barrier>
@@ -8,10 +8,10 @@
 
 namespace kawa
 {
-class par_task_engine
+class thread_pool
 {
 public:
-	par_task_engine(size_t thread_count)
+	thread_pool(size_t thread_count)
 		: _barrier(thread_count + 1)
 		, _thread_count(thread_count)
 		, _tasks_count(thread_count + 1)
@@ -39,7 +39,7 @@ public:
 								return;
 							}
 
-							_query(_starts[i], _ends[i]);
+							_task(_starts[i], _ends[i]);
 
 							_barrier.arrive_and_wait();
 						}
@@ -48,7 +48,7 @@ public:
 			}
 		}
 	}
-	~par_task_engine()
+	~thread_pool()
 	{
 		_should_join = true;
 
@@ -70,11 +70,13 @@ public:
 		delete[] _starts;
 	}
 
+
+
 public:
 	template<typename Fn>
 	void task(Fn&& query, size_t work)
 	{
-		_query = std::forward<Fn>(query);
+		_task = std::forward<Fn>(query);
 
 		size_t chunk_work = work / _tasks_count;
 
@@ -93,7 +95,7 @@ public:
 
 		_barrier.arrive_and_wait();
 
-		_query(_starts[_tasks_count - 1], _ends[_tasks_count - 1]);
+		_task(_starts[_tasks_count - 1], _ends[_tasks_count - 1]);
 
 		_barrier.arrive_and_wait();
 	}
@@ -108,7 +110,7 @@ private:
 	size_t*									_ends = nullptr;
 
 
-	std::function<void(size_t, size_t)>		_query = nullptr;
+	std::function<void(size_t, size_t)>		_task = nullptr;
 	std::barrier<>							_barrier;
 
 	bool									_should_join = false;
