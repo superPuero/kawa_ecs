@@ -58,10 +58,11 @@ int main() {
 
     registry reg({
         .max_entity_count = 255,
-        .max_component_types = 64,
-        .thread_count = 8,
-        .debug_name = "example::registry"
+        .max_component_types = 16,
+        .name = "example::registry"
     });
+
+    kawa::thread_pool tp(8);
 
     entity_id e1 = reg.entity();
     reg.emplace<Position>(e1, 12.4f, 34.6f);
@@ -83,7 +84,7 @@ int main() {
     reg.query(update_position, dt);
 
     // Parallel update
-    reg.query_par([](Position& pos, const Velocity& vel) {
+    reg.query_par(tp, [](Position& pos, const Velocity& vel) {
         pos.x += vel.x;
         pos.y += vel.y;
     });
