@@ -1,4 +1,6 @@
-# 🧩 kawa::ecs ***README IS CURRENTLY OUTDATED***
+***README IS CURRENTLY OUTDATED***
+
+# 🧩 kawa::ecs
 
 ![language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
 
