@@ -3,54 +3,46 @@
 
 #include <type_traits>
 
-#include "meta.h"
+#include "../core/meta.h"
 #include "ecs_base.h"
 
 namespace kawa
 {
 	namespace meta
-	{			
+	{
 		template<typename Fn, size_t offset, typename...Params>
 		struct query_traits
 		{
 			static constexpr size_t params_count = sizeof...(Params) + offset;
 
-
 			using dirty_args_tuple = typename function_traits<Fn>::args_tuple;
 
-			using params_tuple = typename sub_tuple<dirty_args_tuple, offset, params_count>::tuple;
+			static constexpr bool is_empty = !(std::tuple_size_v<dirty_args_tuple> - sizeof...(Params));
+
+			static constexpr bool passes_entity_id = []()
+				{
+					if constexpr (is_empty)
+					{
+						return false;
+					}
+					else
+					{
+						return std::is_same_v<std::tuple_element_t<0, dirty_args_tuple>, ecs::entity_id>;
+					}
+				}();
+
+			using params_tuple = typename sub_tuple<dirty_args_tuple, offset + passes_entity_id, params_count + passes_entity_id>::tuple;
 
 			using args_tuple = transform_each_t<dirty_args_tuple, remove_suffix_cv_t>;
 
 			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
 																											
-			using no_params_args_tuple = sub_tuple<args_tuple, params_count, args_count>::tuple;
+			using no_params_args_tuple = sub_tuple<args_tuple, params_count + passes_entity_id, args_count>::tuple;
 			static constexpr size_t no_params_args_count = std::tuple_size_v<no_params_args_tuple>;
 
 			constexpr static size_t require_count = meta::lval_ref_type_count<no_params_args_tuple>::value;
 			constexpr static size_t optional_count = meta::ptr_type_count<no_params_args_tuple>::value;
 		};
-
-		template<typename Fn, typename...Params>
-		struct query_self_traits
-		{
-			static constexpr size_t params_count = sizeof...(Params) + 1;
-
-			using dirty_args_tuple = typename function_traits<Fn>::args_tuple;
-
-			using params_tuple = typename sub_tuple<dirty_args_tuple, 1, params_count>::tuple;
-
-			using args_tuple = transform_each_t<dirty_args_tuple, remove_suffix_cv_t>;
-
-			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
-
-			using no_params_args_tuple = sub_tuple<args_tuple, params_count, args_count>::tuple;
-			static constexpr size_t no_params_args_count = std::tuple_size_v<no_params_args_tuple>;
-
-			constexpr static size_t require_count = meta::lval_ref_type_count<no_params_args_tuple>::value;
-			constexpr static size_t optional_count = meta::ptr_type_count<no_params_args_tuple>::value;
-		};
-
 
 		template<typename T>
 		consteval inline bool valid_component_fn() noexcept

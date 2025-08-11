@@ -97,7 +97,7 @@ namespace kawa
 {
 	namespace meta
 	{
-		namespace _internal
+		namespace _
 		{
 
 			template<typename T>
@@ -144,12 +144,12 @@ namespace kawa
 		template<typename T>
 		inline constexpr std::string_view type_name() noexcept
 		{
-			return _internal::type_name_helper(KAWA_META_PRETTYFUNC);
+			return _::type_name_helper(KAWA_META_PRETTYFUNC);
 		}
 
 		constexpr uint64_t string_hash(std::string_view str) noexcept
 		{
-			return _internal::fnv1a_hash(str);
+			return _::fnv1a_hash(str);
 		}
 
 		template<typename T>

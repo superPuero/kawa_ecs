@@ -9,6 +9,8 @@ using namespace kawa::ecs;
 
 struct Vec3 { Vec3(float x, float y, float z) {}; Vec3(const Vec3& other) = default; float x, y, z; };
 struct Velocity { float x, y, z; };
+struct Position { float x, y, z; };
+
 struct Health { int hp; };
 struct Score { float value; };
 struct Flags { uint32_t mask; };
@@ -17,8 +19,25 @@ struct Transform { float matrix[32] = { 0 }; };
 struct AI { int state; };
 struct Enemy {};
 
+auto update_movement_1(double dt) 
+{
+    return [=](Position& pos, const Velocity& vel) 
+           {
+                pos.x += vel.x * dt;
+                pos.y += vel.y * dt;
+                pos.z += vel.z * dt;
+           };
+}
+
+void update_movement_2(double dt, Position& pos, const Velocity& vel)
+{
+    pos.x += vel.x * dt;
+    pos.y += vel.y * dt;
+    pos.z += vel.z * dt;
+}
+
 constexpr size_t ENTITY_COUNT = 1'000'000;
-constexpr size_t BENCH_COUNT = 1000;
+constexpr size_t BENCH_COUNT = 1;
 
 template <typename Fn>
 double benchmark(const std::string& name, Fn&& fn, size_t count = BENCH_COUNT)
@@ -42,18 +61,18 @@ double benchmark(const std::string& name, Fn&& fn, size_t count = BENCH_COUNT)
 
 int main()
 {   
+    kawa::thread_pool x(16);
+
     registry reg
     ({
         .name = "registry::stress_test",
         .max_entity_count = ENTITY_COUNT,
         .max_component_types = 16
-        //.thread_count = 8,     
     });
 
     std::vector<entity_id> entities;
     entities.reserve(ENTITY_COUNT);
 
-    //std::cout << "kawa::ecs::registry will use " << reg.get_specs().thread_count << " threads for parallel queries" << '\n';
     std::cout << '\n';
 
     benchmark
@@ -75,7 +94,8 @@ int main()
             {
                 reg.emplace<Vec3>(id, 1.0f, 2.0f, 3.0f);
                 reg.emplace<Flags>(id, 0xFF);
-                reg.emplace<Velocity>(id, 0.1f, 0.2f, 0.3f);
+                reg.emplace<Velocity>(id, 0.1f, 0.2f, 0.3f); 
+                reg.emplace<Position>(id, 0.1f, 0.2f, 0.3f);
             }
         }, 1
     );
@@ -164,6 +184,68 @@ int main()
     //    }
     //);
 
+    volatile double dt = 0.16;
+    volatile double f = 123;
+    volatile double g = 321;
+
+
+    benchmark
+    (
+        "empty",
+        [&]()
+        {
+            reg.query
+            (
+                [](entity_id e, float f, Position& pos)
+                {
+                    pos.x += 12 * f;
+                }, 12.f
+
+            );
+        }
+    );
+
+    benchmark
+    (
+        "update_movement_1",
+        [&]()
+        {
+            reg.query
+            (
+                update_movement_1(dt)
+            );
+        }
+    );
+
+
+
+    benchmark
+    (
+        "update_movement_1",
+        [&]()
+        {
+            reg.query
+            (
+                [=](Position& pos, const Velocity& vel)
+                    {
+                        pos.x += vel.x * dt;
+                        pos.y += vel.y * dt;
+                        pos.z += vel.z * dt;
+                    }
+            );
+        }
+    );
+
+    benchmark
+    (
+        "update_movement_2",
+        [&]()
+        {
+            reg.query(update_movement_2, dt);
+        }
+    );
+
+
     benchmark
     (
         "Vec3 + Velocity + optional Score",
@@ -204,18 +286,9 @@ int main()
         [&]()
         {
             float dt = 0.016f;
-            reg.query
-            (
-                [](float dt, Vec3& pos, Velocity& vel)
-                {
-                    pos.x += vel.x * dt;
-                    pos.y += vel.y * dt;
-                    pos.z += vel.z * dt;
-                }
-                , dt
-            );
         }
     );
+
     benchmark
     (
         "Parallel Fallthrough: delta + Vec3 + Velocity",
@@ -494,8 +567,7 @@ int main()
                     v.x *= m;
                     v.y *= m;
                     v.z *= m;
-                },
-                multiplier
+                }
             );
         }
     );

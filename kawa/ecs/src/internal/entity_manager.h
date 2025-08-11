@@ -2,7 +2,7 @@
 #define KAWA_ECS_ENTITY_MANAGER
 
 #include <limits>
-#include "core.h"
+#include "../core/core.h"
 
 namespace kawa
 {
@@ -27,6 +27,7 @@ public:
 		_entity_mask = new bool[capacity]();
 		_entity_entries = new size_t[capacity]();
 		_r_entity_entries = new size_t[capacity]();
+
 	};
 
 	entity_manager(const entity_manager& other)
@@ -67,11 +68,13 @@ public:
 			delete[] _entity_entries;
 			delete[] _r_entity_entries;
 
+
 			_debug_name = other._debug_name;
 			_capacity = other._capacity;
 			_occupied = other._occupied;
 			_free_list_size = other._free_list_size;
 			_entries_counter = other._entries_counter;
+
 
 			_free_list = new size_t[_capacity];
 			std::copy(other._free_list, other._free_list + _capacity, _free_list);
@@ -84,7 +87,6 @@ public:
 
 			_r_entity_entries = new size_t[_capacity];
 			std::copy(other._r_entity_entries, other._r_entity_entries + _capacity, _r_entity_entries);
-
 		}
 		return *this;
 	}
@@ -97,7 +99,6 @@ public:
 		_free_list_size = 0;
 		_entries_counter = 0;
 		_occupied = 0;
-		
 	}
 
 	inline entity_id get_new() noexcept

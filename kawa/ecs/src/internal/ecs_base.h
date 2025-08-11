@@ -1,7 +1,7 @@
 #ifndef KAWA_ECS_BASE
 #define KAWA_ECS_BASE
 
-#include "meta.h"
+#include "../core/meta.h"
 
 namespace kawa
 {
