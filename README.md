@@ -1,56 +1,59 @@
-***README IS CURRENTLY OUTDATED***
-
 # 🧩 kawa::ecs
 
-![language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
-
-**kawa::ecs** is a *lightweight, parallel-friendly C++ Entity-Component System* designed for clarity, speed, and simplicity.  
-It provides a minimal and expressive interface for managing entities, components, and systems — optimized for both single-threaded and multithreaded workloads.
-
----
-
-## ⚙️ Building & Integration
-
-### 🔹 1. Single-header
-1. Copy `single_header/kwecs.h` into your include path  
-2. `#include "registry.h"`  
-3. Compile with **C++20**  
-4. Profit!
-
-### 🔹 2. Organized source
-1. Copy the `kawa/` directory into your include path  
-2. `#include "kawa/ecs/kwecs.h"`  
-3. Compile with **C++20**  
-4. Done!
-
-✅ No third-party dependencies. No linkage headaches.
+![Language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)  
+**kawa::ecs** is a *lightweight, modern and parallel ready* Entity-Component System for modern C++.  
+It offers a minimal yet powerful API for building games, simulations, and real-time applications with both single-threaded and multi-threaded execution.
 
 ---
 
-## ⚡ Features
+## 🚀 Why kawa::ecs?
 
-| Feature                    | Description                                                            |
-|---------------------------|-------------------------------------------------------------------------|
-| **Fast**                  | Cache-friendly design with performance-focused internals                |
-| **Functional queries**    | Intuitive entity matching with strong query semantics *read more below* |
-| **Parallel queries**      | Natively parallel via `query_par(...)`                                  |
-| **Debug-friendly**        | Rich assertions with `KAWA_ASSERT_MSG`                                  |
-| **Single-header**         | Drop in version with `single_header/registry.h`                         |
+- **Fast** — cache-friendly storage and minimal indirection  
+- **Expressive** — functional, intuitive query interface  
+- **Parallel** — simple thread-pool integration for parallel processing  
+- **No dependencies** — zero third-party requirements  
+- **Debug-friendly** — rich runtime assertions
 
 ---
 
-## 🛠️ Quick Start
+## 📦 Integration
+
+### 1️⃣ Single-Header
+```bash
+cp single_header/kwecs.h ./include/
+```
+```cpp
+#include "kwecs.h"
+```
+- Compile with **C++20**  
+- Profit!
+
+### 2️⃣ Organized Source
+```bash
+cp -r kawa/ ./include/
+```
+```cpp
+#include "kawa/ecs/kwecs.h"
+```
+- Compile with **C++20**  
+- Profit!
+
+✅ No linking. No build system magic.
+
+---
+
+## ⚡ Quick Start
 
 ```cpp
 #include "kwecs.h"
-
+#include <iostream>
 #include <string>
 
 struct Position { float x, y; };
 struct Velocity { float x, y; };
 struct Label    { std::string name; };
 
-void update_position(float dt, Position& pos, Velocity& vel) {
+void update_position(float dt, Position& pos, const Velocity& vel) {
     pos.x += vel.x * dt;
     pos.y += vel.y * dt;
 }
@@ -58,118 +61,101 @@ void update_position(float dt, Position& pos, Velocity& vel) {
 int main() {
     using namespace kawa::ecs;
 
+    // Create registry
     registry reg({
+        .name = "demo",
         .max_entity_count = 255,
-        .max_component_types = 16,
-        .name = "example::registry"
+        .max_component_types = 64
     });
 
-    kawa::thread_pool tp(8);
-
-    entity_id e1 = reg.entity();
-    reg.emplace<Position>(e1, 12.4f, 34.6f);
-    reg.emplace<Velocity>(e1, 2.0f, 3.0f);
-
-    entity_id e2 = reg.entity_with(
-        Position{ 10, 20 },
-        Velocity{ 1, 1 },
-        Label{ "Ichigo" }
-    );
+    // Create entities
+    entity_id e1 = reg.entity(Position{12.4f, 34.6f}, Velocity{2.0f, 3.0f});
+    entity_id e2 = reg.entity(Position{10, 20}, Velocity{1, 1}, Label{"Ichigo"});
 
     // Query with optional component
     reg.query([](Position& pos, Label* label) {
-        std::cout << (label ? label->name : "unnamed") << " is at (" << pos.x << ", " << pos.y << ")\n";
+        std::cout << (label ? label->name : "unnamed")
+                  << " is at (" << pos.x << ", " << pos.y << ")\n";
     });
 
-    // Update using fall-through argument
+    // Fall-through parameter
     float dt = 0.16f;
     reg.query(update_position, dt);
 
-    // Parallel update
+    // Parallel query
+    kawa::thread_pool tp(8);
     reg.query_par(tp, [](Position& pos, const Velocity& vel) {
         pos.x += vel.x;
         pos.y += vel.y;
     });
-
-    return 0;
 }
-
 ```
-> More examples and documentation in **examples.cpp**
----
-
-## 📚 API Cheat‑Sheet
-
-| Call                                 | Purpose                                              |
-| ------------------------------------ | ---------------------------------------------------- |
-| `registry(reg_specs)`                | Construct registry                                   |
-| `entity()`                           | Create new entity or return `nullent`                |
-| `entity_with<Ts...>(Ts{}...)`        | Streamline entity and components creation            |
-| `emplace<T>(id, args…)`              | Construct component `T` on entity with args          |
-| `erase<T>(id)`                       | Remove component `T`                                 |
-| `has<T>(id)`                         | Check if entity has component `T`                    |
-| `get<T>(id)` / `get_if_has<T>(id)`   | Access component (reference / pointer)               |
-| `query(fn, args…)`                   | Iterate matching entities                            |
-| `query_self(fn, args…)`              | Iterate with `entity_id` as first function parameter |
-| `query_par(fn, args…)`               | Parallel query on matching entities                  |
-| `query_self_par(fn, args…)`          | Parallel self query                                  |
-| `query_with(id, fn, args…)`          | Query a single entity                                |
-| `copy<Ts...>(from, to)`              | Copy components                                      |
-| `move<Ts...>(from, to)`              | Move components                                      |
-| `clone(from, to)`                    | Clone all components from one entity into another    |
-| `entity_id clone(id)`                | Clone all components from entity, returns new entity |
-| `destroy(id)`                        | Destroy entity and all components                    |
-
 
 ---
 
-## 🔍 Querying Semantics
+## 🛠️ API Overview
 
-The `registry::query` method is a **variadic parameter matching** system:
+### Entity Management
+| Call                                   | Purpose                                               |
+|----------------------------------------|-------------------------------------------------------|
+| `entity()`                             | Create a new empty entity                             |
+| `entity(Ts... components)`             | Create entity with given components                   |
+| `destroy(id)`                          | Destroy entity and remove all components              |
+| `clone(from)`                          | Clone entity into a new one                           |
+| `clone(from, to)`                      | Overwrite `to` with `from`’s components               |
 
-```
-[ fall-through..., required/optional components...]
-```
+### Component Management
+| Call                                   | Purpose                                               |
+|----------------------------------------|-------------------------------------------------------|
+| `emplace<T>(id, args…)`                | Add component `T` to entity                           |
+| `erase<Ts...>(id)`                     | Remove one or more components                         |
+| `has<Ts...>(id)`                       | Check if entity has all listed components             |
+| `get<T>(id)` / `get_if_has<T>(id)`     | Access component (ref / ptr)                          |
+| `copy<Ts...>(from, to)`                 | Copy specific components                              |
+| `move<Ts...>(from, to)`                 | Move specific components                              |
 
-Each group:
+### Querying
+| Call                                   | Purpose                                               |
+|----------------------------------------|-------------------------------------------------------|
+| `query(fn, args…)`                     | Iterate over matching entities                        |
+| `query_par(tp, fn, args…)`              | Same as `query` but parallelized with thread pool     |
+| `query_with(id, fn, args…)`             | Run query on a single entity                          |
+| `query_info(fn)`                        | Iterate components with metadata for all entities     |
+| `query_info_with(id, fn)`               | Iterate components with metadata for one entity       |
 
-| Group            | Type signature example        | Notes                                            |
-|------------------|-------------------------------|--------------------------------------------------|
-| **Fall-through** | `T`, `T&`, `T*`               | `Passed in` from outside (mimics lambda capture) |
-| **Required**     | `Component& / Component`      | Entity must have this to match                   |
-| **Optional**     | `Component*`                  | nullptr if the entity lacks the component        |
+### Hooks
+| Call                                   | Purpose                                               |
+|----------------------------------------|-------------------------------------------------------|
+| `on_construct(fn)`                     | Called when component is added to an entity                 |
+| `on_destroy(fn)`                       | Called when component is removed from an entity             |
 
-### ⚠️ Grouping Rules
-
-- Groups **must appear in this strict order**:  
-  `fall-through` → `required/optional`
-- **Each group may be empty**
- 
 ---
 
-- ✅ Valid:
+## 🔍 Query Semantics
 
+`registry::query` inspects your function parameters and matches entities accordingly.
+
+### Parameter Groups
+| Group         | Example                 | Meaning                                              |
+|---------------|-------------------------|------------------------------------------------------|
+| **Fall-through** | `T`, `T&`, `T*`         | Passed in from outside (not from components)         |
+| **Required**     | `Component&` or `const Component&` | Entity must have this to match                       |
+| **Optional**     | `Component*`           | `nullptr` if the entity lacks this component         |
+
+**Order matters:** Fall-through → Components.  
+Example:
 ```cpp
-reg.query([](float dt, Label* label), dt);
-reg.query([](Label* label, Position& pos));
-reg.query_self([](entity_id id, float dt, Position& pos, const Velocity& vel), dt);
-reg.query_par([](float dt, Position& pos, Lavel* label, Velocity& vel), dt);
-```
-
-- ❌ Invalid:
-
-```cpp
-reg.query([](Position& pos, float dt), dt); // ❌ fall-through must come first
+reg.query([](float dt, Position& pos, Label* name), 0.16f);
 ```
 
 ---
 
-### 🧵 Parallel Queries
-**query_par** and **query_self_par** execute the query in *parallel*.
-By default, they use half of hardware threads.
-You can configure thread count by changing thread_count parameter while constructing registry, set it to 0 to turn off paralellism
+## 🧵 Parallel Queries
+
+`query_par` runs queries in parallel using a thread pool.  
+- Pass your own `thread_pool` instance, or use the registry’s default.  
+- Set `thread_count = 0` in `registry` constructor to disable parallelism.
 
 ---
 
-> Made with care.  
-> If you use `kawa::ecs` in something cool, let me know!
+> Made with care ❤️ — If you build something cool with **kawa::ecs**, share it!
