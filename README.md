@@ -17,18 +17,6 @@ It offers a minimal yet powerful API for building games, simulations, and real-t
 ---
 
 ## 📦 Integration
-
-### 1️⃣ Single-Header
-```bash
-cp single_header/kwecs.h ./include/
-```
-```cpp
-#include "kwecs.h"
-```
-- Compile with **C++20**  
-- Profit!
-
-### 2️⃣ Organized Source
 ```bash
 cp -r kawa/ ./include/
 ```

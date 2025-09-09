@@ -15,7 +15,7 @@ struct Health { int hp; };
 
 // === Example external queries ===
 void print_label(Label* label) 
-{
+{                                       
     if (label)
         std::cout << "Entity Label: " << label->name << '\n';
     else
@@ -37,19 +37,21 @@ auto update_movement_factory(float dt)
         };
 }
 
-int main() {
+int main() 
+{
+
     using namespace kawa::ecs;
 
     // === 1. Registry creation ===
     registry reg
         ({
-            .name = "demo",           // Debug-friendly registry name
+            .name = "demo",           // Debug registry name
             .max_entity_count = 16,   // Max number of entities
             .max_component_types = 8  // Max unique component types
         });
 
     // === 1.1 Thread pool (required for parallel queries) ===
-    kawa::thread_pool tp(8);
+    kawa::thread_pool tp(16);
 
     // === 2. Entity creation ===
     entity_id dummy = reg.entity();
