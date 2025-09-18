@@ -2,14 +2,13 @@
 #define KAWA_ECS_ENTITY_MANAGER
 
 #include <limits>
-#include "../core/core.h"
+#include "ecs_types.h"
+#include "../../../core/core.h"
 
 namespace kawa
 {
 namespace ecs
 {
-
-typedef size_t entity_id;
 
 constexpr inline entity_id nullent = std::numeric_limits<entity_id>::max();
 

@@ -3,8 +3,8 @@
 
 #include <type_traits>
 
-#include "../core/meta.h"
-#include "ecs_base.h"
+#include "../../../core/meta.h"
+#include "ecs_types.h"
 
 namespace kawa
 {
@@ -33,15 +33,15 @@ namespace kawa
 
 			using params_tuple = typename sub_tuple<dirty_args_tuple, offset + passes_entity_id, params_count + passes_entity_id>::tuple;
 
-			using args_tuple = transform_each_t<dirty_args_tuple, remove_suffix_cv_t>;
+			using no_cv_args_tuple = transform_each_t<dirty_args_tuple, remove_suffix_cv_t>;
 
-			static constexpr size_t args_count = std::tuple_size_v<args_tuple>;
+			static constexpr size_t args_count = std::tuple_size_v<no_cv_args_tuple>;
 																											
-			using no_params_args_tuple = sub_tuple<args_tuple, params_count + passes_entity_id, args_count>::tuple;
-			static constexpr size_t no_params_args_count = std::tuple_size_v<no_params_args_tuple>;
+			using no_params_no_cv_args_tuple = sub_tuple<no_cv_args_tuple, params_count + passes_entity_id, args_count>::tuple;
+			static constexpr size_t no_params_args_count = std::tuple_size_v<no_params_no_cv_args_tuple>;
 
-			constexpr static size_t require_count = meta::lval_ref_type_count<no_params_args_tuple>::value;
-			constexpr static size_t optional_count = meta::ptr_type_count<no_params_args_tuple>::value;
+			constexpr static size_t require_count = meta::not_ptr_type_count<no_params_no_cv_args_tuple>::value;
+			constexpr static size_t optional_count = meta::ptr_type_count<no_params_no_cv_args_tuple>::value;
 		};
 
 		template<typename T>

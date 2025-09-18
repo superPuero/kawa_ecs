@@ -155,21 +155,21 @@ namespace kawa
 		};
 
 		template<typename...Args>
-		constexpr size_t lval_ref_type_count_impl()
+		constexpr size_t not_ptr_type_count_impl()
 		{
-			return (0 + ... + (std::is_lvalue_reference_v<Args> ? 1 : 0));
+			return (0 + ... + (!std::is_pointer_v<Args> ? 1 : 0));
 		}
 
 		template<typename...Args>
-		struct lval_ref_type_count
+		struct not_ptr_type_count
 		{
-			constexpr static size_t value = lval_ref_type_count_impl<Args...>();
+			constexpr static size_t value = not_ptr_type_count_impl<Args...>();
 		};
 
 		template<typename...Args>
-		struct lval_ref_type_count<std::tuple<Args...>>
+		struct not_ptr_type_count<std::tuple<Args...>>
 		{
-			constexpr static size_t value = lval_ref_type_count_impl<Args...>();
+			constexpr static size_t value = not_ptr_type_count_impl<Args...>();
 		};
 
 		template<typename RetTy, typename...ArgTy>

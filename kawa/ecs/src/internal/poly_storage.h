@@ -6,7 +6,7 @@
 #include <cstring> 
 
 #include <iostream>
-#include "ecs_base.h"
+#include "ecs_types.h"
 
 namespace kawa
 {
@@ -75,7 +75,6 @@ namespace kawa
 							if (_mask[id])
 							{
 								_copy_fn(other._storage, _storage, id, id);
-								_on_construct(id);
 							}
 						}
 
@@ -161,7 +160,6 @@ namespace kawa
 								if (_mask[id])
 								{
 									_copy_fn(other._storage, _storage, id, id);
-									_on_construct(id);
 								}
 							}
 
@@ -668,10 +666,10 @@ namespace kawa
 
 			private:
 				size_t			_capacity = 0;
-				void* _storage = nullptr;
-				bool* _mask = nullptr;
-				entity_id* _connector = nullptr;
-				size_t* _r_connector = nullptr;
+				void*			_storage = nullptr;
+				bool*			_mask = nullptr;
+				entity_id*		_connector = nullptr;
+				size_t*			_r_connector = nullptr;
 				size_t			_occupied = 0;
 
 				erase_fn_t		_erase_fn = nullptr;

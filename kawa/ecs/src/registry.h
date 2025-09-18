@@ -4,8 +4,9 @@
 #include <array>
 #include <concepts>
 
-#include "../core/core.h"
-#include "../core/meta.h"
+#include "../../core/core.h"
+#include "../../core/meta.h"
+
 #include "internal/meta_ecs_ext.h"
 #include "internal/poly_storage.h"
 #include "internal/entity_manager.h"
@@ -23,12 +24,11 @@ namespace kawa
 			{
 				std::string name = "unnamed";
 				size_t max_entity_count = 512;
-				size_t max_component_types = 32;
 			};
 
-			inline registry(const registry::specification& reg_spec = {}) noexcept
+			inline registry(const registry::specification& reg_spec = {.name = "foo", .max_entity_count = 512}) noexcept
 				: _spec(reg_spec)
-				, _storage_manager(reg_spec.max_component_types, reg_spec.max_entity_count, reg_spec.name)
+				, _storage_manager(reg_spec.max_entity_count, reg_spec.name)
 				, _entity_manager(reg_spec.max_entity_count, reg_spec.name)
 			{
 			}
@@ -45,17 +45,6 @@ namespace kawa
 			inline const specification& get_specs() const noexcept
 			{
 				return _spec;
-			}
-
-			inline std::string get_full_name() const noexcept
-			{
-				if (_owned_by_world)
-				{
-					return std::format("{}::{}", _world_name, _spec.name);
-				}
-
-				return _spec.name;
-
 			}
 
 			inline void clear() noexcept
@@ -79,7 +68,7 @@ namespace kawa
 			inline T& emplace(entity_id entity, Args&&...args) noexcept
 			{
 				KAWA_DEBUG_EXPAND(_validate_entity(entity));
-				KAWA_ASSERT_MSG(_entity_manager.alive(entity), "[ {} ] kawa::ecs::registry::emplace<{}> on non alive entity", get_full_name(), meta::type_name<T>());
+				KAWA_ASSERT_MSG(_entity_manager.alive(entity), "[ {} ] kawa::ecs::registry::emplace<{}> on non alive entity", _spec.name, meta::type_name<T>());
 
 				return _storage_manager.emplace<T>(entity, std::forward<Args>(args)...);
 			}
@@ -233,6 +222,11 @@ namespace kawa
 				_storage_manager.ensure<Args...>();
 			}
 
+			inline u64 query_level() const
+			{
+				return _query_level;
+			}
+
 			template<typename Fn, typename...Params>
 				requires
 			(
@@ -302,7 +296,7 @@ namespace kawa
 				{
 					if constexpr (query_traits::passes_entity_id)
 					{
-						_query_self_impl<Fn, typename query_traits::no_params_args_tuple>
+						_query_self_impl<Fn, typename query_traits::no_params_no_cv_args_tuple>
 							(
 								std::forward<Fn>(fn),
 								std::make_index_sequence<query_traits::no_params_args_count>{},
@@ -313,7 +307,7 @@ namespace kawa
 					}
 					else
 					{
-						_query_impl<Fn, typename query_traits::no_params_args_tuple>
+						_query_impl<Fn, typename query_traits::no_params_no_cv_args_tuple>
 							(
 								std::forward<Fn>(fn),
 								std::make_index_sequence<query_traits::no_params_args_count>{},
@@ -331,7 +325,7 @@ namespace kawa
 				requires meta::ensure_fallthrough_parameters<Fn, 0, Params...>
 			inline void query_par(thread_pool& exec, Fn&& fn, Params&&...params) noexcept
 			{
-				KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_par inside another parallel query body", get_full_name());
+				KAWA_ASSERT_MSG(!_query_par_running, "[ {} ]: trying to invoke kawa::ecs::query_par inside another parallel query body", _spec.name);
 
 				_query_par_running = true;
 				_query_level++;
@@ -356,7 +350,7 @@ namespace kawa
 				{
 					if constexpr (query_traits::passes_entity_id)
 					{
-						_query_self_par_impl<Fn, typename query_traits::no_params_args_tuple>
+						_query_self_par_impl<Fn, typename query_traits::no_params_no_cv_args_tuple>
 							(
 								exec,
 								std::forward<Fn>(fn),
@@ -368,7 +362,7 @@ namespace kawa
 					}
 					else
 					{
-						_query_par_impl<Fn, typename query_traits::no_params_args_tuple>
+						_query_par_impl<Fn, typename query_traits::no_params_no_cv_args_tuple>
 							(
 								exec,
 								std::forward<Fn>(fn),
@@ -401,7 +395,7 @@ namespace kawa
 					}
 					else
 					{
-						_query_with_impl<Fn, typename query_traits::no_params_args_tuple>
+						_query_with_impl<Fn, typename query_traits::no_params_no_cv_args_tuple>
 							(
 								entity,
 								std::forward<Fn>(fn),
@@ -766,13 +760,6 @@ namespace kawa
 					);
 				}
 			}
-		private:
-			inline void _make_owned(const std::string& world_name) noexcept
-			{
-				_owned_by_world = true;
-				_world_name = world_name;
-			}
-
 
 		private:
 			template<typename args_tuple, size_t...I, size_t N>
@@ -803,7 +790,7 @@ namespace kawa
 				{
 					using T = std::tuple_element_t<I, args_tuple>;
 
-					if constexpr (std::is_reference_v<T>)
+					if constexpr (!std::is_pointer_v<T>)
 					{
 						using CleanT = std::remove_reference_t<T>;
 						auto key = get_id<CleanT>();
@@ -824,13 +811,13 @@ namespace kawa
 
 			inline void _validate_entity(entity_id id) const noexcept
 			{
-				KAWA_ASSERT_MSG(id != nullent, "[ {} ]: nullent usage", get_full_name());
-				KAWA_ASSERT_MSG(id < _spec.max_entity_count, "[ {} ]: invalid entity_id [ {} ] usage", get_full_name(), id);
+				KAWA_ASSERT_MSG(id != nullent, "[ {} ]: nullent usage", _spec.name);
+				KAWA_ASSERT_MSG(id < _spec.max_entity_count, "[ {} ]: invalid entity_id [ {} ] usage", _spec.name, id);
 			}
 
 			inline void _validate_storage(storage_id id) const noexcept
 			{
-				KAWA_ASSERT_MSG(id < _spec.max_component_types, "[ {} ]: maximum amoount of unique component types reached [ {} ], increase max_component_types", get_full_name(), _spec.max_component_types);
+				KAWA_ASSERT_MSG(id < KAWA_ECS_STORAGE_MAX_UNIQUE_STORAGE_COUNT, "[ {} ]: maximum amoount of unique component types reached [ {} ], increase KAWA_ECS_STORAGE_MAX_UNIQUE_STORAGE_COUNT", _spec.name, KAWA_ECS_STORAGE_MAX_UNIQUE_STORAGE_COUNT);
 			}
 
 		private:
@@ -838,11 +825,10 @@ namespace kawa
 
 			_::storage_manager			_storage_manager;
 			_::entity_manager			_entity_manager;
-			std::string					_world_name;
 
 			uint32_t					_query_level = 0;
 			bool						_query_par_running = false;
-			bool						_owned_by_world = false;
+
 
 		private:
 			static inline storage_id	_storage_id_counter = 0;

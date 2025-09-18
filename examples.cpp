@@ -1,17 +1,21 @@
 // ===== kawa::ecs Usage & API Documentation =====
 
+//#define KAWA_ECS_STORAGE_MAX_UNIQUE_STORAGE_COUNT 128 // default is 256 
+
 #include "kawa/ecs/kwecs.h"
-// #include "single_header/kwecs.h"
 
 #include <iostream>
 #include <string>
 #include <vector>
+
 
 // === User-defined components ===
 struct Position { float x, y; };
 struct Velocity { float x, y; };
 struct Label { std::string name; };
 struct Health { int hp; };
+
+struct Foo { Foo(kawa::ecs::entity_id i) { std::cout << "new foo for " << i << '\n'; } };
 
 // === Example external queries ===
 void print_label(Label* label) 
@@ -37,9 +41,14 @@ auto update_movement_factory(float dt)
         };
 }
 
+struct foo
+{
+    std::string name = "unnamed";
+    int number = 42;
+};
+
 int main() 
 {
-
     using namespace kawa::ecs;
 
     // === 1. Registry creation ===
@@ -47,7 +56,6 @@ int main()
         ({
             .name = "demo",           // Debug registry name
             .max_entity_count = 16,   // Max number of entities
-            .max_component_types = 8  // Max unique component types
         });
 
     // === 1.1 Thread pool (required for parallel queries) ===
@@ -60,11 +68,14 @@ int main()
     reg.emplace<Label>(dummy, "Dummy");
     reg.emplace<Health>(dummy, 1);
 
+    auto* v = &reg;
+
     // === 2.2 Lifetime hooks ===
     reg.on_construct
     (
-        [](entity_id id, Label& l) 
-        {
+        [&](entity_id id, Label& l) 
+        {                      
+            reg.emplace<Foo>(id, id);
             std::cout << "New Label: " << l.name << " on " << id << '\n';
         }
     );
@@ -117,6 +128,7 @@ int main()
     );
 
     // Optional component
+
     reg.query
     (
         [](Position& pos, Label* label) 
@@ -216,7 +228,135 @@ int main()
     reg.destroy(clone);
 
     // === 4. Snapshotting / state transfer ===
-    registry snapshot(reg); // on_construct hooks will run during copy
+    registry snapshot(reg); 
+    v = &snapshot;
+    total_health = 0;
+    snapshot.query([](float& acc, Health& h) { acc += h.hp; }, total_health);
+    std::cout << "Snap: Total health in system: " << total_health << '\n';
+
+    // Getting entity_id inside query
+    snapshot.query
+    (
+        [](entity_id id, Label& label, Health* hp)
+        {
+            std::cout << "Snap: Entity " << id << " named " << label.name;
+            if (hp) std::cout << " has " << hp->hp << " HP";
+            std::cout << '\n';
+        }
+    );
+
+    // === 3.10 Parallel queries ===
+    snapshot.query_par
+    (
+        tp,
+        [](Position& pos, const Velocity& vel)
+        {
+            pos.x += vel.x;
+            pos.y += vel.y;
+        }
+    );
+
+    snapshot.query_par
+    (
+        tp,
+        [](entity_id id, Position& pos)
+        {
+            std::cout << "Snap: Parallel Entity: " << id
+                << " at (" << pos.x << ", " << pos.y << ")\n";
+        }
+    );
+
+    // === 3.11 Single-entity query ===
+    snapshot.query_with
+    (
+        player,
+        [](Position& pos, Velocity& vel)
+        {
+            pos.x += vel.x * 0.5f;
+            pos.y += vel.y * 0.5f;
+        }
+    );
+
+    snapshot.query_info_with
+    (
+        player,
+        [](component_info info)
+        {
+            std::cout << "Snap: Player has component: " << info.name << '\n';
+        }
+    );
+
+    snapshot.query_info
+    (
+        [](entity_id e, component_info info)
+        {
+            std::cout << "Snap: Entity " << e << " has component: " << info.name << '\n';
+        }
+    );
+
+    reg.query
+    (
+        [](entity_id id, Label& label, Health* hp)
+        {
+            std::cout << "Entity " << id << " named " << label.name;
+            if (hp) std::cout << " has " << hp->hp << " HP";
+            std::cout << '\n';
+        }
+    );
+
+    // === 3.10 Parallel queries ===
+    reg.query_par
+    (
+        tp,
+        [](Position& pos, const Velocity& vel)
+        {
+            pos.x += vel.x;
+            pos.y += vel.y;
+        }
+    );
+
+    reg = snapshot;
+
+    v = &reg;
+
+    reg.query_par
+    (
+        tp,
+        [](entity_id id, Position& pos)
+        {
+            std::cout << "Parallel Entity: " << id
+                << " at (" << pos.x << ", " << pos.y << ")\n";
+        }
+    );
+
+    // === 3.11 Single-entity query ===
+    reg.query_with
+    (
+        player,
+        [](Position& pos, Velocity& vel)
+        {
+            pos.x += vel.x * 0.5f;
+            pos.y += vel.y * 0.5f;
+        }
+    );
+
+    // === 3.12 Reflection-info queries ===
+    reg.query_info_with
+    (
+        player,
+        [](component_info info)
+        {
+            std::cout << "Player has component: " << info.name << '\n';
+        }
+    );
+
+    reg.query_info
+    (
+        [](entity_id e, component_info info)
+        {
+            std::cout << "Entity " << e << " has component: " << info.name << '\n';
+        }
+    );
 
     std::cout << "Demo complete.\n";
 }

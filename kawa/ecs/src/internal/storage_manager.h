@@ -1,19 +1,23 @@
 #ifndef KAWA_ECS_STORAGE_MANAGER
 #define KAWA_ECS_STORAGE_MANAGER
 
+#ifndef KAWA_ECS_STORAGE_MAX_UNIQUE_STORAGE_COUNT 
+	#define KAWA_ECS_STORAGE_MAX_UNIQUE_STORAGE_COUNT 256
+#endif
+
 #include <limits>
+
+#include "../../../core/meta.h"
+#include "../../../core/core.h"
+#include "../../../core/core_types.h"
+
 #include "poly_storage.h"
-#include "../core/meta.h"
-#include "../core/core.h"
+#include "ecs_types.h"
 
 namespace kawa
 {
 	namespace ecs
 	{
-
-		using storage_id = size_t;
-
-		using component_info = meta::type_info;
 
 		namespace _
 		{
@@ -21,16 +25,16 @@ namespace kawa
 			{
 
 			public:
-				inline storage_manager(size_t storage_capacity, size_t capacity, const std::string& debug_name) noexcept
-					: _debug_name(debug_name)
+				inline storage_manager(usize capacity, const string& debug_name) noexcept
+					: _debug_name(debug_name)		
 				{
 					_capacity = capacity;
-					_storage_capacity = storage_capacity;
+					_storage_capacity = KAWA_ECS_STORAGE_MAX_UNIQUE_STORAGE_COUNT;
 
-					_storages = new poly_storage[storage_capacity]();
-					_mask = new bool[storage_capacity]();
-					_entries = new size_t[storage_capacity]();
-					_r_entries = new size_t[storage_capacity]();
+					_storages = new poly_storage[_storage_capacity]();
+					_mask = new bool[_storage_capacity]();
+					_entries = new size_t[_storage_capacity]();
+					_r_entries = new size_t[_storage_capacity]();
 				};
 
 				inline storage_manager(const storage_manager& other) noexcept
@@ -90,9 +94,6 @@ namespace kawa
 						_storage_capacity = other._storage_capacity;
 						_entries_counter = other._entries_counter;
 
-						_storages = new poly_storage[_storage_capacity];
-						std::copy(other._storages, other._storages + _storage_capacity, _storages);
-
 						_mask = new bool[_storage_capacity];
 						std::copy(other._mask, other._mask + _storage_capacity, _mask);
 
@@ -101,6 +102,9 @@ namespace kawa
 
 						_r_entries = new size_t[_storage_capacity];
 						std::copy(other._r_entries, other._r_entries + _storage_capacity, _r_entries);
+
+						_storages = new poly_storage[_storage_capacity];
+						std::copy(other._storages, other._storages + _storage_capacity, _storages);
 					}
 					return *this;
 				}
@@ -146,10 +150,17 @@ namespace kawa
 				}
 
 				template<typename T>
-				inline storage_id get_id() noexcept
+				inline storage_id _get_id() noexcept
 				{
 					static storage_id id = _id_counter++;
+
 					return id;
+				}
+
+				template<typename T>
+				inline storage_id get_id() noexcept
+				{
+					return _get_id<std::remove_cvref_t<T>>();
 				}
 
 				template<typename...Args>
@@ -217,7 +228,7 @@ namespace kawa
 				inline poly_storage& get_storage() noexcept
 				{
 					storage_id id = get_id<T>();
-
+				
 					poly_storage& storage = _storages[id];
 					bool& cell = _mask[id];
 
@@ -262,17 +273,19 @@ namespace kawa
 				}
 
 			private:
-				poly_storage* _storages = nullptr;
-				bool* _mask = nullptr;
+				poly_storage*	_storages = nullptr;
+				bool*			_mask = nullptr;
 
-				storage_id* _entries = nullptr;
-				size_t* _r_entries = nullptr;
+				storage_id*		_entries = nullptr;
+				size_t*			_r_entries = nullptr;
 				size_t			_entries_counter = 0;
 
 				size_t			_capacity = 0;
 				size_t			_storage_capacity = 0;
 
-				std::string		_debug_name;
+				string			_debug_name;
+
+				//void*			_reg_ptr;
 
 			private:
 				static inline size_t _id_counter = 0;
