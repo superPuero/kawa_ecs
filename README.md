@@ -51,7 +51,6 @@ int main() {
     registry reg({
         .name = "demo",
         .max_entity_count = 255,
-        .max_component_types = 64
     });
 
     // Create entities
@@ -138,9 +137,7 @@ reg.query([](float dt, Position& pos, Label* name), 0.16f);
 
 ## Parallel Queries
 
-`query_par` runs queries in parallel using a thread pool.  
-- Pass your own `thread_pool` instance, or use the registry’s default.  
-- Set `thread_count = 0` in `registry` constructor to disable parallelism.
+`query_par` runs queries in parallel using a kawa::thread_pool.
 
 ---
 
