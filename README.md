@@ -1,4 +1,4 @@
-# 🧩 kawa::ecs
+# kawa::ecs
 
 ![Language](https://img.shields.io/badge/C%2B%2B-20-blue.svg)  
 **kawa::ecs** is a *lightweight, modern and parallel ready* Entity-Component System for modern C++.  
@@ -6,7 +6,7 @@ It offers a minimal yet powerful API for building games, simulations, and real-t
 
 ---
 
-## 🚀 Why kawa::ecs?
+## Why kawa::ecs?
 
 - **Fast** — cache-friendly storage and minimal indirection  
 - **Expressive** — functional, intuitive query interface  
@@ -16,7 +16,7 @@ It offers a minimal yet powerful API for building games, simulations, and real-t
 
 ---
 
-## 📦 Integration
+## Integration
 ```bash
 cp -r kawa/ ./include/
 ```
@@ -26,11 +26,9 @@ cp -r kawa/ ./include/
 - Compile with **C++20**  
 - Profit!
 
-✅ No linking. No build system magic.
-
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ```cpp
 #include "kwecs.h"
@@ -81,7 +79,7 @@ int main() {
 
 ---
 
-## 🛠️ API Overview
+## API Overview
 
 ### Entity Management
 | Call                                   | Purpose                                               |
@@ -119,7 +117,7 @@ int main() {
 
 ---
 
-## 🔍 Query Semantics
+## Query Semantics
 
 `registry::query` inspects your function parameters and matches entities accordingly.
 
@@ -138,7 +136,7 @@ reg.query([](float dt, Position& pos, Label* name), 0.16f);
 
 ---
 
-## 🧵 Parallel Queries
+## Parallel Queries
 
 `query_par` runs queries in parallel using a thread pool.  
 - Pass your own `thread_pool` instance, or use the registry’s default.  
