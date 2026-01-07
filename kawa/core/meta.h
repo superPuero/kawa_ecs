@@ -8,6 +8,8 @@
 #include <tuple>
 #include <type_traits>
 
+#include "core_types.h"
+
 #if defined(__clang__)
 #	define KAWA_META_PRETTYFUNC __PRETTY_FUNCTION__
 #	define KAWA_META_TYPE_NAME_PREFIX "kawa::meta::type_name() [T = "
@@ -28,43 +30,44 @@ namespace kawa
 {
 	namespace meta
 	{
-		namespace _internal
+		namespace _
 		{
-
 			template<typename T>
 			extern const T fake_object;
 
-			inline constexpr std::string_view type_name_helper(std::string_view decorated_name)
+			inline constexpr kawa::string_view type_name_helper(kawa::string_view decorated_name)
 			{
-				size_t start = decorated_name.find(KAWA_META_TYPE_NAME_PREFIX);
-				size_t end = decorated_name.find(KAWA_META_TYPE_NAME_POSTFIX);
+				usize start = decorated_name.find(KAWA_META_TYPE_NAME_PREFIX);
+				usize end = decorated_name.find(KAWA_META_TYPE_NAME_POSTFIX);
 
-#ifdef _MSC_VER	
-
-				auto pre_name = decorated_name.substr(start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1, end - (start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1));
-				size_t pre_name_space = pre_name.find_first_of(' ');
-
-				if (pre_name_space != std::string_view::npos)
-				{
-					return pre_name.substr(pre_name_space + 1, pre_name.size() - pre_name_space);
-				}
-				return pre_name;
-#else
-				return decorated_name.substr(start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1, end - (start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1));
-#endif 
+				auto semi_clean_name = decorated_name.substr(start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1, end - (start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1));
+			
+//#ifdef _MSC_VER	
+//
+//				auto pre_name = decorated_name.substr(start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1, end - (start + sizeof(KAWA_META_TYPE_NAME_PREFIX) - 1));
+//				usize pre_name_space = pre_name.find_first_of(' ');				
+//
+//				if (pre_name_space != std::string::npos)
+//				{
+//					return pre_name.substr(pre_name_space + 1, pre_name.size() - pre_name_space);
+//				}
+//				return pre_name;
+//#else
+				return semi_clean_name;
+//#endif 
 
 			}
 
-			constexpr uint64_t fnv1a_hash(std::string_view str) noexcept
+			constexpr u64 fnv1a_hash(kawa::string_view str) noexcept
 			{
-				constexpr uint64_t fnv_offset_basis = 14695981039346656037ull;
-				constexpr uint64_t fnv_prime = 1099511628211ull;
+				constexpr u64 fnv_offset_basis = 14695981039346656037ull;
+				constexpr u64 fnv_prime = 1099511628211ull;
 
-				uint64_t hash = fnv_offset_basis;
+				u64 hash = fnv_offset_basis;
 
 				for (char c : str)
 				{
-					hash ^= static_cast<uint64_t>(c);
+					hash ^= static_cast<u64>(c);
 					hash *= fnv_prime;
 				}
 
@@ -73,114 +76,106 @@ namespace kawa
 		}
 
 		template<typename T>
-		inline constexpr std::string_view type_name() noexcept
+		inline consteval kawa::string_view type_name() noexcept
 		{
-			return _internal::type_name_helper(KAWA_META_PRETTYFUNC);
+			//return KAWA_META_PRETTYFUNC;
+			return _::type_name_helper(KAWA_META_PRETTYFUNC);
 		}
 
-		constexpr uint64_t string_hash(std::string_view str) noexcept
+		constexpr u64 string_hash(string_view str) noexcept					
 		{
-			return _internal::fnv1a_hash(str);
+			return _::fnv1a_hash(str);
 		}
 
 		template<typename T>
-		inline constexpr uint64_t type_hash() noexcept
+		inline consteval u64 type_hash() noexcept
 		{
 			return string_hash(type_name<T>());
 		}
 
-		struct empty_type_info_t {};
+		template<typename T>
+		struct construct_tag{};
 
 		struct type_info
 		{
-			constexpr inline type_info() noexcept
-				: name(type_name<empty_type_info_t>())
-				, hash(type_hash<empty_type_info_t>()) 
+			inline constexpr type_info() noexcept
+				: name("")
+				, hash(0)
 				, size(0)
-				, alignment(std::align_val_t{0}) {}
-
-			constexpr inline type_info(const type_info& other) noexcept
-				: name(other.name)
-				, hash(other.hash)
-				, size(other.size)
-				, alignment(other.alignment) {}
-
-			constexpr inline type_info(std::string_view n, uint64_t h, size_t s, std::align_val_t align) noexcept
-				: name(n)
-				, hash(h)
-				, size(s)
-				, alignment(align){}
+				, alignment(0)
+			{
+			}
 
 			template<typename T>
-			[[nodiscard]] static constexpr inline type_info create() noexcept
+			inline constexpr type_info(construct_tag<T>)
+				: name(type_name<T>())
+				, hash(type_hash<T>())
+				, size(sizeof(T))
+				, alignment(alignof(T))
 			{
-				return type_info(type_name<T>(), type_hash<T>(), sizeof(T), std::align_val_t{ alignof(T) });
 			}
 
-			constexpr inline void make_empty() noexcept
+			template<typename T>
+			void refresh() noexcept
 			{
-				name = type_name<empty_type_info_t>();
-				hash = type_hash<empty_type_info_t>();
-				size = 0;
-				alignment = std::align_val_t{ 0 };
+				*this = type_info(construct_tag<T>{});
 			}
 
-			constexpr bool operator==(const type_info& other) noexcept
+			constexpr operator bool() const noexcept
+			{
+				return hash;
+			}
+
+			constexpr bool operator==(const type_info& other) const noexcept
 			{
 				return (name == other.name && hash == other.hash);
 			}
 
-			std::string_view name;
-			uint64_t hash;
-			size_t size;
-			std::align_val_t alignment;
+			template<typename T>
+			constexpr inline bool is() const noexcept
+			{
+				return hash == type_hash<T>();
+			}
+
+			void reset()
+			{
+				*this = type_info();
+			}
+
+			kawa::string_view name;
+			u64 hash;
+			usize size;
+			usize alignment;
+		};
+		template <template <typename> class Predicate, typename Tuple>
+		struct filter_tuple;
+
+		template <template <typename> class Predicate, typename... Ts>
+		struct filter_tuple<Predicate, std::tuple<Ts...>> {
+			
+			using type = decltype(std::tuple_cat(
+				std::declval<
+				typename std::conditional<
+				Predicate<Ts>::value, 
+				std::tuple<Ts>,       
+				std::tuple<>          
+				>::type
+				>()...
+			));
 		};
 
-		template<typename...Types>
-		constexpr size_t ptr_type_count_impl()
-		{
-			return (0 + ... + (std::is_pointer_v<Types> ? 1 : 0));
-		}
-
-		template<typename...Types>
-		struct ptr_type_count
-		{
-			constexpr static size_t value = ptr_type_count_impl<Types...>();
-		};
-
-		template<typename...Types>
-		struct ptr_type_count<std::tuple<Types...>>
-		{
-			constexpr static size_t value = ptr_type_count_impl<Types...>();
-		};
-
-		template<typename...Args>
-		constexpr size_t not_ptr_type_count_impl()
-		{
-			return (0 + ... + (!std::is_pointer_v<Args> ? 1 : 0));
-		}
-
-		template<typename...Args>
-		struct not_ptr_type_count
-		{
-			constexpr static size_t value = not_ptr_type_count_impl<Args...>();
-		};
-
-		template<typename...Args>
-		struct not_ptr_type_count<std::tuple<Args...>>
-		{
-			constexpr static size_t value = not_ptr_type_count_impl<Args...>();
-		};
+		template <template <typename> class Predicate, typename Tuple>
+		using filter_tuple_t = typename filter_tuple<Predicate, Tuple>::type;
 
 		template<typename RetTy, typename...ArgTy>
 		struct function_traits {};
 
 		template<typename RetTy, typename...ArgTy>
 		struct function_traits<RetTy(*)(ArgTy...)>
-		{		
+		{
 			using return_type = RetTy;
 			using args_tuple = typename std::tuple<ArgTy...>;
-			template<size_t i>
+			template<usize i>
 			using arg_at = typename std::tuple_element_t<i, args_tuple>;
 		};
 
@@ -189,7 +184,7 @@ namespace kawa
 		{
 			using return_type = RetTy;
 			using args_tuple = typename std::tuple<ArgTy...>;
-			template<size_t i>
+			template<usize i>
 			using arg_at = typename std::tuple_element_t<i, args_tuple>;
 		};
 
@@ -198,7 +193,7 @@ namespace kawa
 		{
 			using return_type = RetTy;
 			using args_tuple = typename std::tuple<ArgTy...>;
-			template<size_t i>
+			template<usize i>
 			using arg_at = typename std::tuple_element_t<i, args_tuple>;
 		};
 
@@ -207,96 +202,38 @@ namespace kawa
 		{
 			using return_type = RetTy;
 			using args_tuple = typename std::tuple<ArgTy...>;
-			template<size_t i>
+			template<usize i>
 			using arg_at = typename std::tuple_element_t<i, args_tuple>;
 		};
 
 		template<typename T>
 		struct function_traits<T> : function_traits<decltype(&T::operator())> {};
 
-		template<typename Tuple, size_t start, size_t end, typename = void>
+		template<typename Tuple, usize start, usize end, typename = void>
 		struct sub_tuple
 		{
-			using tuple = decltype([]<size_t... I>(std::index_sequence<I...>) -> std::tuple<std::tuple_element_t<start + I, Tuple>...>
-			{}(std::make_index_sequence<end - start>{}));
+			using tuple = decltype([]<usize... I>(std::index_sequence<I...>) -> std::tuple<std::tuple_element_t<start + I, Tuple>...>
+			{
+			}(std::make_index_sequence<end - start>{}));
 		};
 
-		template<typename Tuple, size_t start, size_t end>
+		template<typename Tuple, usize start, usize end>
 		struct sub_tuple<Tuple, start, end, std::enable_if_t<((end - start) > std::tuple_size_v<Tuple>)>>
 		{
 			using tuple = typename std::tuple<>;
 		};
 
-		template <typename T, template <typename> typename F>
+		template <template <typename> typename F, typename T>
 		struct transform_each;
 
-		template <typename...Types, template <typename> typename F>
-		struct transform_each<std::tuple<Types...>, F>
+		template <template <typename> typename F, typename...Types>
+		struct transform_each<F, std::tuple<Types...>>
 		{
 			using type = typename std::tuple<F<Types>...>;
 		};
 
-		template <typename T, template <typename...> typename F>
-		using transform_each_t = typename transform_each<T, F>::type;
-
-		template<template <typename> typename P, typename... Args>
-		struct collect
-		{
-			static constexpr bool val = (P<Args>::value && ...);
-		};
-
-		template<template <typename, typename> typename P, typename tpl1, typename tpl2>
-		struct collect_pairs
-		{
-			static constexpr bool val = []<size_t...I>(std::index_sequence<I...>)
-			{
-				return (P<std::tuple_element_t<I, tpl1>, std::tuple_element_t<I, tpl2>>::value && ...);
-			}(std::make_index_sequence<std::tuple_size_v<tpl1>>{});
-		};
-			
-		template <typename T>
-		struct remove_suffix_cv {
-			using type = T;
-		};
-
-		template <typename T>
-		struct remove_suffix_cv<T const&>
-		{
-			using type = T&;
-		};
-
-		template <typename T>
-		struct remove_suffix_cv<T volatile&>
-		{
-			using type = T&;
-		};
-
-		template <typename T>
-		struct remove_suffix_cv<T const volatile&>
-		{
-			using type = T&;
-		};
-
-		template <typename T>
-		struct remove_suffix_cv<T const*>
-		{
-			using type = T*;
-		};
-
-		template <typename T>
-		struct remove_suffix_cv<T volatile*>
-		{
-			using type = T*;
-		};
-
-		template <typename T>
-		struct remove_suffix_cv<T const volatile*>
-		{
-			using type = T*;
-		};
-
-		template <typename T>
-		using remove_suffix_cv_t = typename remove_suffix_cv<T>::type;
+		template<template <typename...> typename F, typename T>
+		using transform_each_t = typename transform_each<F, T>::type;
 	}
 }
 #endif 
