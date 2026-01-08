@@ -4,8 +4,6 @@ project(kawa_core VERSION 1.0.0 LANGUAGES CXX)
 
 add_library(kawa_core INTERFACE)
 
-add_library(kawa::core ALIAS kawa_core)
-
 target_include_directories(kawa_core INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
