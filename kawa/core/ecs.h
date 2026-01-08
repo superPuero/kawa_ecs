@@ -15,7 +15,7 @@ namespace kawa
 		entity_id() noexcept : val(invalid) {}
 		entity_id(u64 id) noexcept : val(id) {}
 
-		bool is_valid() noexcept
+		bool is_valid() const noexcept
 		{
 			return val != invalid;
 		}
@@ -86,10 +86,6 @@ namespace kawa
 	
 	struct component_storage : indirect_array_base
 	{
-		using func_storage_t = unsized_any;
-		using on_construct_invoke_fn_t = void(func_storage_t&, usize, void*);
-		using on_destruct_invoke_fn_t = void(func_storage_t&, usize, void*);
-
 		lifetime_vtable _vtable;
 
 		_opaque_callback_wrap on_construct_callback;
