@@ -617,7 +617,7 @@ namespace kawa
 		template<typename Fn>
 		void query_info(Fn&& info_func)
 		{		
-			for (auto e : _entries)
+			for (auto e : _entries.as_base())
 			{
 				for (auto& s : _storages.values)
 				{
