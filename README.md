@@ -11,8 +11,7 @@ It offers a minimal yet powerful API.
 - **ecs.h** — modern, fast and parallel-friendly entity component system that can be used for building highly scalable aggregators, simulations and games
 - **meta.h** — powerful compile-time meta utility library, with things like consteval type_name<T>(), useful type_info wrapper and various handly template and meta programmin related tools    
 - **testing.h** — robust and easy yo use DSL like testing framework
-
--- **and much more**
+- **and much more**
 ---
 
 ## Quick Start
