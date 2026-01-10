@@ -1,7 +1,5 @@
 // ===== kawa::ecs Usage & API Documentation =====
 
-//#define KAWA_ECS_STORAGE_MAX_UNIQUE_STORAGE_COUNT 128 // default is 256 
-
 #include "../kawa/core/ecs.h"
 
 #include <iostream>
